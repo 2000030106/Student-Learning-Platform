@@ -2,8 +2,13 @@ import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import HomePage from './components/HomePage'
 import AuthPage from './components/AuthPage'
+import CourseEditor from './components/CourseEditor'
 import CourseDetail from './components/CourseDetail'
 import Dashboard from './components/Dashboard'
+import RequestsPage from './components/RequestsPage'
+import TrainerRequestsPage from './components/TrainerRequestsPage'
+import StudentQuizzesPage from './components/StudentQuizzesPage'
+import CodingPractice from './components/CodingPractice'
 import Navbar from './components/Navbar'
 
 const App = () => {
@@ -36,7 +41,32 @@ const App = () => {
           <Route path="/login" element={<AuthPage mode="login" setToken={setToken} setUser={setUser} />} />
           <Route path="/register" element={<AuthPage mode="register" setToken={setToken} setUser={setUser} />} />
           <Route path="/course/:slug" element={<CourseDetail token={token} user={user} />} />
+          <Route
+            path="/quizzes"
+            element={user ? <StudentQuizzesPage token={token} /> : <Navigate to="/login" />}
+          />
+          <Route path="/practice" element={user ? <CodingPractice token={token} /> : <Navigate to="/login" />} />
           <Route path="/dashboard" element={user ? <Dashboard token={token} user={user} /> : <Navigate to="/login" />} />
+          <Route
+            path="/requests"
+            element={user?.role === 'admin' || user?.role === 'trainer' ? <RequestsPage token={token} user={user} /> : <Navigate to="/dashboard" />}
+          />
+          <Route
+            path="/requests/:slug"
+            element={user?.role === 'admin' || user?.role === 'trainer' ? <RequestsPage token={token} user={user} /> : <Navigate to="/dashboard" />}
+          />
+          <Route
+            path="/trainer-requests"
+            element={user?.role === 'admin' ? <TrainerRequestsPage token={token} /> : <Navigate to="/dashboard" />}
+          />
+          <Route
+            path="/course-editor"
+            element={user?.role === 'admin' ? <CourseEditor token={token} /> : <Navigate to="/dashboard" />}
+          />
+          <Route
+            path="/course-editor/:slug"
+            element={user?.role === 'admin' ? <CourseEditor token={token} /> : <Navigate to="/dashboard" />}
+          />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>

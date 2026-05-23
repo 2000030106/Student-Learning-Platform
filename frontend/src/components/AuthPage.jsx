@@ -27,8 +27,8 @@ const AuthPage = ({ mode, setToken, setUser }) => {
         navigate('/')
       } else {
         await register(form.role, form)
-        // After successful registration, redirect user to the login page
-        // instead of automatically logging them in.
+        setToken('')
+        setUser(null)
         navigate('/login')
       }
     } catch (err) {
