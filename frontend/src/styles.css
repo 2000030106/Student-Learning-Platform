@@ -1,0 +1,313 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  line-height: 1.6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top left, rgba(59, 130, 246, 0.2), transparent 40%),
+    radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.15), transparent 35%),
+    linear-gradient(180deg, #020617 0%, #0f172a 100%);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 2rem;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  position: sticky;
+  top: 0;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(12px);
+  z-index: 10;
+}
+
+.brand a {
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #f8fafc;
+}
+
+.navbar nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.button {
+  border: none;
+  border-radius: 999px;
+  padding: 0.85rem 1.4rem;
+  font-weight: 600;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.button:hover {
+  transform: translateY(-1px);
+}
+
+.button.primary {
+  background: #2563eb;
+  color: white;
+}
+
+.button.secondary {
+  background: rgba(148, 163, 184, 0.15);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.button.small {
+  padding: 0.6rem 1rem;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.page-container {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+/* Make the course grid span the full width under the hero copy so cards
+   can form multiple columns instead of being constrained to the right column */
+.hero .course-grid {
+  grid-column: 1 / -1;
+}
+
+.hero-copy {
+  padding: 2rem 0;
+}
+
+.eyebrow {
+  display: inline-flex;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.8rem;
+  color: #60a5fa;
+  margin-bottom: 1rem;
+}
+
+.hero h1 {
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  margin: 0;
+}
+
+.hero p {
+  max-width: 44rem;
+  margin: 1.5rem 0 2rem;
+  color: #cbd5e1;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.course-grid {
+  display: grid;
+  gap: 1.25rem;
+  /* fixed column counts for predictable layout:
+     - 3 columns on large screens
+     - 2 columns on medium screens
+     - 1 column on small screens
+  */
+  grid-template-columns: repeat(3, 1fr);
+  align-items: start;
+}
+
+.course-card,
+.auth-card,
+.dashboard-card,
+.course-detail,
+.alert,
+.success-box {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 24px;
+  box-shadow: 0 20px 80px rgba(15, 23, 42, 0.35);
+}
+
+.course-card {
+  padding: 1.5rem;
+}
+
+.course-card h2 {
+  margin-top: 0;
+}
+
+.course-card p {
+  margin: 1rem 0;
+  color: #cbd5e1;
+}
+
+.course-card small {
+  display: block;
+  margin-bottom: 1rem;
+  color: #94a3b8;
+}
+
+.auth-panel,
+.course-detail,
+.dashboard-page {
+  padding: 1rem 0;
+}
+
+.auth-card {
+  max-width: 540px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.auth-card h2 {
+  margin-top: 0;
+}
+
+.field-group {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.field-group label {
+  font-size: 0.95rem;
+  color: #cbd5e1;
+}
+
+.field-group input,
+.field-group select {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.9);
+  color: #f8fafc;
+  border-radius: 14px;
+  padding: 0.95rem 1rem;
+}
+
+.alert,
+.success-box {
+  border-radius: 18px;
+  padding: 1rem 1.25rem;
+  margin-top: 1rem;
+}
+
+.alert {
+  background: rgba(244, 63, 94, 0.15);
+  border: 1px solid rgba(244, 63, 94, 0.25);
+  color: #fee2e2;
+}
+
+.success-box {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  color: #d1fae5;
+}
+
+.detail-header {
+  padding: 2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.detail-header .meta {
+  color: #94a3b8;
+}
+
+.feature-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.feature-list article {
+  padding: 1.5rem;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.dashboard-page h1 {
+  margin-top: 0;
+}
+
+.dashboard-card {
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.request-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.request-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.95);
+}
+
+.request-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1100px) {
+  .course-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  .course-grid {
+    grid-template-columns: 1fr;
+  }
+}
