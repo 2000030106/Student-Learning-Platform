@@ -46,3 +46,21 @@ npm run dev
 - Students can register and request access for courses.
 - Admin can approve or reject course access requests.
 - The frontend is designed with a professional, modern UI.
+
+## Render Deploy
+
+This repo includes `render.yaml` for a one-service Render deployment:
+
+- FastAPI backend runs as the web service.
+- React is built during deploy and served by FastAPI.
+- Render Postgres provides `DATABASE_URL`.
+- Docker is used so the service has Python, Node/npm, and Java available.
+
+Deploy steps:
+
+1. Push this project to GitHub.
+2. In Render, create a new Blueprint from the repo.
+3. Render will create:
+   - `student-learning-platform`
+   - `student-learning-platform-db`
+4. After deploy, open the service URL Render gives you.
