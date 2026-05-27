@@ -5,10 +5,10 @@ const challenges = [
   {
     id: 'profile-card',
     title: 'Profile Card',
-    level: 'Beginner',
+    level: 'Web',
     runtime: 'web',
     goal: 'Build a centered student profile card with a title, short bio, and action button.',
-    tests: ['Use a heading', 'Style a card', 'Add one button'],
+    tests: ['Use semantic HTML', 'Style a card', 'Add one action button'],
     starter: {
       html: `<main class="card">
   <p class="eyebrow">Student</p>
@@ -54,7 +54,7 @@ button {
   {
     id: 'score-counter',
     title: 'Score Counter',
-    level: 'JavaScript',
+    level: 'Web',
     runtime: 'web',
     goal: 'Create a counter that increases when the button is clicked.',
     tests: ['Select an element', 'Handle a click event', 'Update text content'],
@@ -107,50 +107,6 @@ addButton.addEventListener('click', () => {
     },
   },
   {
-    id: 'course-list',
-    title: 'Course List',
-    level: 'Layout',
-    runtime: 'web',
-    goal: 'Render course cards from an array using JavaScript.',
-    tests: ['Use an array', 'Loop over items', 'Render cards into the page'],
-    starter: {
-      html: `<main>
-  <h1>My Courses</h1>
-  <div id="courses" class="grid"></div>
-</main>`,
-      css: `body {
-  margin: 0;
-  font-family: Inter, system-ui, sans-serif;
-  background: #ecfeff;
-  color: #0f172a;
-}
-
-main {
-  width: min(900px, 92vw);
-  margin: 48px auto;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.course {
-  border-radius: 16px;
-  padding: 20px;
-  background: white;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
-}`,
-      js: `const courses = ['Java Full Stack', 'Python Full Stack', 'SQL Foundation']
-const container = document.querySelector('#courses')
-
-container.innerHTML = courses
-  .map((course) => \`<article class="course"><h2>\${course}</h2><p>Practice daily.</p></article>\`)
-  .join('')`,
-    },
-  },
-  {
     id: 'python-basics',
     title: 'Python Input Practice',
     level: 'Python',
@@ -183,28 +139,79 @@ public class Main {
       stdin: 'Sai',
     },
   },
+  {
+    id: 'sql-foundation',
+    title: 'SQL Select Practice',
+    level: 'SQL',
+    runtime: 'sql',
+    goal: 'Create a small table and query enrolled students with SQL.',
+    tests: ['Create a table', 'Insert sample rows', 'Run a SELECT query'],
+    starter: {
+      main: `CREATE TABLE enrollments (
+  id INTEGER PRIMARY KEY,
+  student_name TEXT NOT NULL,
+  course TEXT NOT NULL,
+  score INTEGER NOT NULL
+);
+
+INSERT INTO enrollments (student_name, course, score) VALUES
+  ('Sai', 'Python Full Stack', 92),
+  ('Anika', 'Java Full Stack', 86),
+  ('Rahul', 'SQL Foundation', 78);
+
+SELECT student_name, course, score
+FROM enrollments
+WHERE score >= 80
+ORDER BY score DESC;`,
+      stdin: '',
+    },
+  },
 ]
 
-const storageKey = 'coding-practice-workspace'
+const languages = [
+  { id: 'web', label: 'Web', file: 'index.html' },
+  { id: 'python', label: 'Python', file: 'main.py' },
+  { id: 'java', label: 'Java', file: 'Main.java' },
+  { id: 'sql', label: 'SQL', file: 'query.sql' },
+]
 
-const CodingPractice = ({ token }) => {
-  const [activeChallengeId, setActiveChallengeId] = useState(challenges[0].id)
+const storageKey = 'coding-practice-workspace-v2'
+
+const getFirstChallenge = (language) => challenges.find((challenge) => challenge.runtime === language) || challenges[0]
+
+const CodingPractice = ({ token, user }) => {
+  const [activeLanguage, setActiveLanguage] = useState('web')
+  const [activeChallengeId, setActiveChallengeId] = useState(getFirstChallenge('web').id)
   const [activeFile, setActiveFile] = useState('html')
-  const [code, setCode] = useState(() => {
+  const [codeByChallenge, setCodeByChallenge] = useState(() => {
     const saved = localStorage.getItem(storageKey)
-    return saved ? JSON.parse(saved) : challenges[0].starter
+    if (saved) {
+      return JSON.parse(saved)
+    }
+    return Object.fromEntries(challenges.map((challenge) => [challenge.id, challenge.starter]))
   })
   const [previewKey, setPreviewKey] = useState(0)
   const [logs, setLogs] = useState([])
   const [runResult, setRunResult] = useState(null)
   const [isRunning, setIsRunning] = useState(false)
 
-  const activeChallenge = challenges.find((challenge) => challenge.id === activeChallengeId) || challenges[0]
-  const isWebChallenge = activeChallenge.runtime === 'web'
+  const languageChallenges = challenges.filter((challenge) => challenge.runtime === activeLanguage)
+  const activeChallenge = challenges.find((challenge) => challenge.id === activeChallengeId) || getFirstChallenge(activeLanguage)
+  const currentCode = codeByChallenge[activeChallenge.id] || activeChallenge.starter
+  const isWebChallenge = activeLanguage === 'web'
+  const activeLanguageMeta = languages.find((language) => language.id === activeLanguage) || languages[0]
+  const activeFileName = isWebChallenge
+    ? activeFile === 'html'
+      ? 'index.html'
+      : activeFile === 'css'
+        ? 'styles.css'
+        : 'script.js'
+    : activeLanguageMeta.file
+  const roleLabel = user?.role ? `${user.role} workspace` : 'developer workspace'
 
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(code))
-  }, [code])
+    localStorage.setItem(storageKey, JSON.stringify(codeByChallenge))
+  }, [codeByChallenge])
 
   useEffect(() => {
     const handleMessage = (event) => {
@@ -222,10 +229,10 @@ const CodingPractice = ({ token }) => {
     () => `<!doctype html>
 <html>
   <head>
-    <style>${code.css}</style>
+    <style>${currentCode.css || ''}</style>
   </head>
   <body>
-    ${code.html}
+    ${currentCode.html || ''}
     <script>
       const sendLog = (...items) => parent.postMessage({
         source: 'practice-console',
@@ -234,28 +241,58 @@ const CodingPractice = ({ token }) => {
       console.log = sendLog
       console.error = sendLog
       try {
-        ${code.js}
+        ${currentCode.js || ''}
       } catch (error) {
         sendLog(error.message)
       }
     </script>
   </body>
 </html>`,
-    [code, previewKey],
+    [currentCode, previewKey],
   )
 
   const updateCode = (value) => {
-    setCode((current) => ({ ...current, [isWebChallenge ? activeFile : 'main']: value }))
+    setCodeByChallenge((current) => ({
+      ...current,
+      [activeChallenge.id]: {
+        ...(current[activeChallenge.id] || activeChallenge.starter),
+        [isWebChallenge ? activeFile : 'main']: value,
+      },
+    }))
   }
 
   const updateStdin = (value) => {
-    setCode((current) => ({ ...current, stdin: value }))
+    setCodeByChallenge((current) => ({
+      ...current,
+      [activeChallenge.id]: {
+        ...(current[activeChallenge.id] || activeChallenge.starter),
+        stdin: value,
+      },
+    }))
   }
 
-  const loadChallenge = (challenge) => {
+  const selectLanguage = (language) => {
+    const nextChallenge = getFirstChallenge(language)
+    setActiveLanguage(language)
+    setActiveChallengeId(nextChallenge.id)
+    setActiveFile(language === 'web' ? 'html' : 'main')
+    setLogs([])
+    setRunResult(null)
+    setPreviewKey((current) => current + 1)
+  }
+
+  const selectChallenge = (challengeId) => {
+    const challenge = challenges.find((item) => item.id === challengeId) || activeChallenge
     setActiveChallengeId(challenge.id)
-    setCode(challenge.starter)
+    setActiveLanguage(challenge.runtime)
     setActiveFile(challenge.runtime === 'web' ? 'html' : 'main')
+    setLogs([])
+    setRunResult(null)
+    setPreviewKey((current) => current + 1)
+  }
+
+  const resetChallenge = () => {
+    setCodeByChallenge((current) => ({ ...current, [activeChallenge.id]: activeChallenge.starter }))
     setLogs([])
     setRunResult(null)
     setPreviewKey((current) => current + 1)
@@ -270,7 +307,7 @@ const CodingPractice = ({ token }) => {
     }
     setIsRunning(true)
     try {
-      const result = await runPracticeCode(activeChallenge.runtime, code.main || '', code.stdin || '', token)
+      const result = await runPracticeCode(activeLanguage, currentCode.main || '', currentCode.stdin || '', token)
       setRunResult(result)
     } catch (err) {
       setRunResult({
@@ -284,100 +321,115 @@ const CodingPractice = ({ token }) => {
   }
 
   return (
-    <section className="practice-page">
-      <header className="practice-hero">
+    <section className="practice-page pro-ide-page">
+      <header className="ide-topbar">
         <div>
-          <span className="eyebrow">Coding Practice</span>
-          <h1>Build, run, and learn in the browser.</h1>
-          <p>Practice web, Python, and Java tasks with live output and starter challenges.</p>
+          <span className="eyebrow">Coding IDE</span>
+          <h1>Practice workspace</h1>
+          <p>{roleLabel} / {activeFileName}</p>
         </div>
-        <div className="practice-score-card">
-          <span>Current task</span>
-          <strong>{activeChallenge.level}</strong>
-          <small>{activeChallenge.title}</small>
+        <div className="ide-actions">
+          <button className="button secondary small" type="button" onClick={resetChallenge}>
+            Reset
+          </button>
+          <button className="button primary small" type="button" onClick={runCode} disabled={isRunning}>
+            {isRunning ? 'Running...' : isWebChallenge ? 'Preview' : 'Run'}
+          </button>
         </div>
       </header>
 
-      <div className="practice-layout">
-        <aside className="challenge-panel">
-          <div className="practice-panel-heading">
-            <span className="eyebrow">Challenges</span>
-            <h2>Pick a task</h2>
-          </div>
-          <div className="challenge-list">
-            {challenges.map((challenge) => (
-              <button
-                key={challenge.id}
-                className={challenge.id === activeChallengeId ? 'active' : ''}
-                type="button"
-                onClick={() => loadChallenge(challenge)}
-              >
-                <span>{challenge.level}</span>
-                <strong>{challenge.title}</strong>
-                <small>{challenge.goal}</small>
-              </button>
+      <section className="ide-command-bar">
+        <div className="language-switcher" aria-label="Select language">
+          {languages.map((language) => (
+            <button
+              key={language.id}
+              className={activeLanguage === language.id ? 'active' : ''}
+              type="button"
+              onClick={() => selectLanguage(language.id)}
+            >
+              {language.label}
+            </button>
+          ))}
+        </div>
+        <label className="challenge-select">
+          <span>Challenge</span>
+          <select value={activeChallenge.id} onChange={(event) => selectChallenge(event.target.value)}>
+            {languageChallenges.map((challenge) => (
+              <option key={challenge.id} value={challenge.id}>
+                {challenge.title}
+              </option>
             ))}
-          </div>
-        </aside>
+          </select>
+        </label>
+        <div className="ide-task-summary">
+          <strong>{activeChallenge.goal}</strong>
+          <small>{activeChallenge.tests.join(' / ')}</small>
+        </div>
+      </section>
 
-        <section className="editor-panel">
-          <div className="practice-panel-heading">
-            <div>
-              <span className="eyebrow">Editor</span>
-              <h2>{activeChallenge.title}</h2>
+      <section className="pro-ide-workbench">
+        <div className="pro-editor-panel">
+          <div className="editor-titlebar">
+            <div className="window-dots" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
             </div>
-            <div className="editor-actions">
-              <button className="button secondary small" type="button" onClick={() => loadChallenge(activeChallenge)}>
-                Reset
-              </button>
-              <button className="button primary small" type="button" onClick={runCode} disabled={isRunning}>
-                {isRunning ? 'Running...' : 'Run'}
-              </button>
-            </div>
+            <strong>{activeFileName}</strong>
+            <small>{activeLanguage.toUpperCase()}</small>
           </div>
 
-          {isWebChallenge ? (
-            <div className="file-tabs">
+          {isWebChallenge && (
+            <div className="file-tabs pro-file-tabs">
               {['html', 'css', 'js'].map((file) => (
-                <button key={file} className={activeFile === file ? 'active' : ''} type="button" onClick={() => setActiveFile(file)}>
+                <button
+                  key={file}
+                  className={activeFile === file ? 'active' : ''}
+                  type="button"
+                  onClick={() => setActiveFile(file)}
+                >
                   {file.toUpperCase()}
                 </button>
               ))}
             </div>
-          ) : (
-            <div className="file-tabs">
-              <button className="active" type="button">
-                {activeChallenge.runtime === 'python' ? 'PYTHON' : 'JAVA'}
-              </button>
-            </div>
           )}
 
           <textarea
-            className="code-editor"
+            className="code-editor pro-code-editor"
             spellCheck="false"
-            value={isWebChallenge ? code[activeFile] || '' : code.main || ''}
+            value={isWebChallenge ? currentCode[activeFile] || '' : currentCode.main || ''}
             onChange={(event) => updateCode(event.target.value)}
           />
-          {!isWebChallenge && (
-            <div className="stdin-panel">
+          <div className="ide-status-bar">
+            <span>{activeFileName}</span>
+            <span>UTF-8</span>
+            <span>{isWebChallenge ? 'Browser preview' : activeLanguage === 'sql' ? 'SQLite runtime' : 'Server runtime'}</span>
+          </div>
+
+          {!isWebChallenge && activeLanguage !== 'sql' && (
+            <div className="stdin-panel pro-stdin-panel">
               <label htmlFor="stdin-input">Program input</label>
               <textarea
                 id="stdin-input"
-                value={code.stdin || ''}
+                value={currentCode.stdin || ''}
                 onChange={(event) => updateStdin(event.target.value)}
                 placeholder="Input lines for your program"
               />
             </div>
           )}
-        </section>
+        </div>
 
-        <section className="preview-panel">
-          <div className="practice-panel-heading">
+        <aside className="pro-output-panel">
+          <div className="output-titlebar">
             <div>
               <span className="eyebrow">{isWebChallenge ? 'Preview' : 'Output'}</span>
-              <h2>{isWebChallenge ? 'Live output' : 'Run result'}</h2>
+              <h2>{isWebChallenge ? 'Live result' : activeLanguage === 'sql' ? 'Query result' : 'Run result'}</h2>
             </div>
+            <span className={runResult?.exit_code === 0 || isWebChallenge ? 'run-state ok' : 'run-state'}>
+              {isWebChallenge ? 'ready' : runResult ? `exit ${runResult.exit_code}` : 'idle'}
+            </span>
           </div>
+
           {isWebChallenge ? (
             <>
               <iframe key={previewKey} title="Coding practice preview" sandbox="allow-scripts" srcDoc={previewDocument} />
@@ -389,7 +441,7 @@ const CodingPractice = ({ token }) => {
           ) : (
             <div className="runtime-output">
               <div>
-                <strong>Standard output</strong>
+                <strong>{activeLanguage === 'sql' ? 'Result table' : 'Standard output'}</strong>
                 <pre>{runResult?.stdout || 'Run your code to see output here.'}</pre>
               </div>
               <div>
@@ -399,16 +451,7 @@ const CodingPractice = ({ token }) => {
               {runResult && <small>Exit code: {runResult.exit_code}{runResult.timed_out ? ' - timed out' : ''}</small>}
             </div>
           )}
-        </section>
-      </div>
-
-      <section className="practice-checklist">
-        {activeChallenge.tests.map((item) => (
-          <article key={item}>
-            <span></span>
-            <strong>{item}</strong>
-          </article>
-        ))}
+        </aside>
       </section>
     </section>
   )

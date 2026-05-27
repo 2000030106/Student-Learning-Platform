@@ -420,7 +420,7 @@ const Dashboard = ({ token, user }) => {
             </article>
           </div>
 
-          <div className="trainer-dashboard-grid">
+          <div className="trainer-dashboard-grid trainer-dashboard-grid-single">
             <section className="trainer-worklist">
               <div className="trainer-section-heading">
                 <div>
@@ -441,29 +441,6 @@ const Dashboard = ({ token, user }) => {
                   <small>Open</small>
                 </Link>
               ))}
-            </section>
-
-            <section className="trainer-activity">
-              <span className="eyebrow">Today</span>
-              <h2>Teaching checklist</h2>
-              <div className="trainer-check-list">
-                <label>
-                  <input type="checkbox" readOnly checked />
-                  Review course overview
-                </label>
-                <label>
-                  <input type="checkbox" readOnly />
-                  Add topic content
-                </label>
-                <label>
-                  <input type="checkbox" readOnly />
-                  Attach video lesson
-                </label>
-                <label>
-                  <input type="checkbox" readOnly />
-                  Draft quiz questions
-                </label>
-              </div>
             </section>
           </div>
         </div>

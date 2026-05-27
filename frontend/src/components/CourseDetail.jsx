@@ -50,6 +50,10 @@ const CourseDetail = ({ token, user }) => {
   const [form, setForm] = useState(emptyLearningForm)
   const [editingItem, setEditingItem] = useState(null)
   const [showEditor, setShowEditor] = useState(false)
+  const [showQuizBuilder, setShowQuizBuilder] = useState(false)
+  const [showQuizResults, setShowQuizResults] = useState(false)
+  const [showCodingBuilder, setShowCodingBuilder] = useState(false)
+  const [showCodingResults, setShowCodingResults] = useState(false)
   const [quizzes, setQuizzes] = useState([])
   const [quizDetail, setQuizDetail] = useState(null)
   const [quizAnswers, setQuizAnswers] = useState({})
@@ -366,6 +370,7 @@ const CourseDetail = ({ token, user }) => {
         explanation: '',
       })
       setMessage('Quiz created successfully.')
+      setShowQuizBuilder(false)
     } catch (err) {
       setError(err.response?.data?.detail || 'Unable to create quiz.')
     }
@@ -423,6 +428,7 @@ const CourseDetail = ({ token, user }) => {
     setQuizReview(null)
     const data = await fetchQuizAnalytics(slug, quiz.id, token)
     setQuizAnalytics(data)
+    setShowQuizResults(true)
   }
 
   const returnToQuizList = () => {
@@ -514,6 +520,7 @@ const CourseDetail = ({ token, user }) => {
         marks: 10,
       })
       setMessage('Coding contest created.')
+      setShowCodingBuilder(false)
     } catch (err) {
       setError(err.response?.data?.detail || 'Unable to create coding contest.')
     }
@@ -560,6 +567,7 @@ const CourseDetail = ({ token, user }) => {
     setCodingResult(null)
     try {
       setCodingAnalytics(await fetchCodingContestAnalytics(slug, contest.id, token))
+      setShowCodingResults(true)
     } catch (err) {
       setError(err.response?.data?.detail || 'Unable to load coding results.')
     }
@@ -697,86 +705,123 @@ const CourseDetail = ({ token, user }) => {
 
     if (canManageLearning) {
       return (
-        <section className="coding-contest-page">
-          <div className="coding-builder-card">
-            <div className="quiz-builder-heading">
-              <div>
-                <span className="eyebrow">Coding Contest Builder</span>
-                <h2>Create coding contest</h2>
-                <p>Add Python, Java, or web coding questions with scoring tests.</p>
-              </div>
+        <section className="trainer-assessment-page coding-studio-page">
+          <div className="trainer-assessment-hero coding-studio-hero">
+            <div>
+              <span className="eyebrow">Coding Studio</span>
+              <h2>Create hands-on coding tests</h2>
+              <p>Design contests with starter code, scoring tests, and scheduled availability.</p>
             </div>
-            <form className="quiz-builder-form" onSubmit={saveCodingContest}>
-              <input name="title" value={codingDraft.title} onChange={handleCodingDraftChange} placeholder="Contest title" required />
-              <input name="description" value={codingDraft.description} onChange={handleCodingDraftChange} placeholder="Short description" required />
-              <input name="starts_at" value={codingDraft.starts_at} onChange={handleCodingDraftChange} type="datetime-local" />
-              <input name="ends_at" value={codingDraft.ends_at} onChange={handleCodingDraftChange} type="datetime-local" />
-              <input name="question_title" value={codingDraft.question_title} onChange={handleCodingDraftChange} placeholder="Question title" />
-              <select name="language" value={codingDraft.language} onChange={handleCodingDraftChange}>
-                <option value="python">Python</option>
-                <option value="java">Java</option>
-                <option value="web">HTML / CSS / JavaScript</option>
-              </select>
-              <textarea name="prompt" value={codingDraft.prompt} onChange={handleCodingDraftChange} placeholder="Problem statement" />
-              <textarea name="starter_code" value={codingDraft.starter_code} onChange={handleCodingDraftChange} placeholder="Starter code" />
-              {codingDraft.language === 'web' ? (
-                <input name="check" value={codingDraft.check} onChange={handleCodingDraftChange} placeholder="Checklist text that must appear in code" />
-              ) : (
-                <>
-                  <textarea name="stdin" value={codingDraft.stdin} onChange={handleCodingDraftChange} placeholder="Test input" />
-                  <textarea name="expected_output" value={codingDraft.expected_output} onChange={handleCodingDraftChange} placeholder="Expected output" />
-                </>
-              )}
-              <input name="marks" value={codingDraft.marks} onChange={handleCodingDraftChange} type="number" min="1" />
-              <button className="button secondary" type="button" onClick={addCodingQuestion}>Add coding question</button>
-              <button className="button primary" type="submit">Publish contest</button>
-            </form>
-            <div className="draft-question-list">
-              {draftCodingQuestions.map((question, index) => (
-                <article key={`${question.title}-${index}`}>
-                  <span>{question.language}</span>
-                  <strong>{question.title}</strong>
-                  <small>{question.marks} marks</small>
-                </article>
-              ))}
-            </div>
+            <button className="button primary" type="button" onClick={() => setShowCodingBuilder(true)}>
+              Create coding test
+            </button>
           </div>
 
-          <div className="coding-contest-grid">
-            {codingContests.map((contest) => (
-              <article key={contest.id} className="coding-contest-card">
-                <div>
-                  <span>{contest.questions?.length || 0} questions</span>
-                  <h2>{contest.title}</h2>
+          <div className="coding-test-grid">
+            {codingContests.length === 0 ? (
+              <div className="assessment-empty">
+                <h3>No coding tests published</h3>
+                <p>Create a challenge set with starter code and automatic scoring.</p>
+              </div>
+            ) : (
+              codingContests.map((contest) => (
+                <article key={contest.id} className="coding-test-card">
+                  <div className="coding-test-card-top">
+                    <span>{contest.questions?.length || 0} questions</span>
+                    <strong>{contest.title}</strong>
+                  </div>
                   <p>{contest.description}</p>
-                  <small>Starts: {formatQuizDateTime(contest.starts_at)} | Ends: {formatQuizDateTime(contest.ends_at)}</small>
-                </div>
-                <div>
-                  <button className="button secondary small" type="button" onClick={() => loadCodingAnalytics(contest)}>Results</button>
-                  <button className="button danger small" type="button" onClick={() => removeCodingContest(contest)}>Delete</button>
-                </div>
-              </article>
-            ))}
+                  <small>{formatQuizDateTime(contest.starts_at)} to {formatQuizDateTime(contest.ends_at)}</small>
+                  <div className="coding-language-row">
+                    {(contest.questions || []).slice(0, 4).map((question) => (
+                      <span key={question.id}>{question.language}</span>
+                    ))}
+                  </div>
+                  <div className="assessment-card-actions">
+                    <button className="button secondary small" type="button" onClick={() => loadCodingAnalytics(contest)}>View results</button>
+                    <button className="button danger small" type="button" onClick={() => removeCodingContest(contest)}>Delete</button>
+                  </div>
+                </article>
+              ))
+            )}
           </div>
 
-          {codingAnalytics && (
-            <section className="coding-results-panel">
-              <div className="quiz-result-bars">
-                <div><span>Submissions</span><strong>{codingAnalytics.submissions}</strong></div>
-                <div><span>Passed</span><strong>{codingAnalytics.passed}</strong></div>
-                <div><span>Failed</span><strong>{codingAnalytics.failed}</strong></div>
-                <div><span>Avg score</span><strong>{codingAnalytics.average_score}</strong></div>
-              </div>
-              <div className="quiz-student-table">
-                {codingAnalytics.attempts.map((attempt) => (
-                  <article key={attempt.id}>
-                    <strong>{attempt.student_name || attempt.student_username || `Student ${attempt.user_id}`}</strong>
-                    <span>{attempt.score}</span>
-                    <small className={attempt.passed ? 'passed' : 'failed'}>{attempt.passed ? 'Passed' : 'Failed'}</small>
-                  </article>
-                ))}
-              </div>
-            </section>
+          {showCodingBuilder && (
+            <div className="modal-backdrop">
+              <section className="trainer-modal coding-creation-modal">
+                <div className="modal-heading">
+                  <div>
+                    <span className="eyebrow">Create Coding Test</span>
+                    <h2>Challenge builder</h2>
+                    <p>Add a question, starter code, and scoring rule before publishing.</p>
+                  </div>
+                  <button className="button secondary small" type="button" onClick={() => setShowCodingBuilder(false)}>Close</button>
+                </div>
+                <form className="quiz-builder-form polished-builder-form coding-builder-form" onSubmit={saveCodingContest}>
+                  <input name="title" value={codingDraft.title} onChange={handleCodingDraftChange} placeholder="Contest title" required />
+                  <input name="description" value={codingDraft.description} onChange={handleCodingDraftChange} placeholder="Short description" required />
+                  <input name="starts_at" value={codingDraft.starts_at} onChange={handleCodingDraftChange} type="datetime-local" />
+                  <input name="ends_at" value={codingDraft.ends_at} onChange={handleCodingDraftChange} type="datetime-local" />
+                  <input name="question_title" value={codingDraft.question_title} onChange={handleCodingDraftChange} placeholder="Question title" />
+                  <select name="language" value={codingDraft.language} onChange={handleCodingDraftChange}>
+                    <option value="python">Python</option>
+                    <option value="java">Java</option>
+                    <option value="web">HTML / CSS / JavaScript</option>
+                  </select>
+                  <textarea name="prompt" value={codingDraft.prompt} onChange={handleCodingDraftChange} placeholder="Problem statement" />
+                  <textarea className="builder-code-box" name="starter_code" value={codingDraft.starter_code} onChange={handleCodingDraftChange} placeholder="Starter code" />
+                  {codingDraft.language === 'web' ? (
+                    <input name="check" value={codingDraft.check} onChange={handleCodingDraftChange} placeholder="Checklist text that must appear in code" />
+                  ) : (
+                    <>
+                      <textarea name="stdin" value={codingDraft.stdin} onChange={handleCodingDraftChange} placeholder="Test input" />
+                      <textarea name="expected_output" value={codingDraft.expected_output} onChange={handleCodingDraftChange} placeholder="Expected output" />
+                    </>
+                  )}
+                  <input name="marks" value={codingDraft.marks} onChange={handleCodingDraftChange} type="number" min="1" />
+                  <button className="button secondary" type="button" onClick={addCodingQuestion}>Add coding question</button>
+                  <button className="button primary" type="submit">Publish contest</button>
+                </form>
+                <div className="draft-question-list compact-draft-list">
+                  {draftCodingQuestions.map((question, index) => (
+                    <article key={`${question.title}-${index}`}>
+                      <span>{question.language} / {question.marks} marks</span>
+                      <strong>{index + 1}. {question.title}</strong>
+                      <small>Starter code and tests configured</small>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </div>
+          )}
+
+          {showCodingResults && codingAnalytics && (
+            <div className="modal-backdrop">
+              <section className="trainer-modal results-modal">
+                <div className="modal-heading">
+                  <div>
+                    <span className="eyebrow">Coding Results</span>
+                    <h2>{codingAnalytics.title}</h2>
+                  </div>
+                  <button className="button secondary small" type="button" onClick={() => setShowCodingResults(false)}>Close</button>
+                </div>
+                <div className="quiz-result-bars">
+                  <div><span>Submissions</span><strong>{codingAnalytics.submissions}</strong></div>
+                  <div><span>Passed</span><strong>{codingAnalytics.passed}</strong></div>
+                  <div><span>Failed</span><strong>{codingAnalytics.failed}</strong></div>
+                  <div><span>Avg score</span><strong>{codingAnalytics.average_score}</strong></div>
+                </div>
+                <div className="quiz-student-table">
+                  {codingAnalytics.attempts.map((attempt) => (
+                    <article key={attempt.id}>
+                      <strong>{attempt.student_name || attempt.student_username || `Student ${attempt.user_id}`}</strong>
+                      <span>{attempt.score}</span>
+                      <small className={attempt.passed ? 'passed' : 'failed'}>{attempt.passed ? 'Passed' : 'Failed'}</small>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </div>
           )}
         </section>
       )
@@ -846,94 +891,117 @@ const CourseDetail = ({ token, user }) => {
   const renderQuizContent = () => {
     if (canManageLearning) {
       return (
-        <section className="quiz-builder-page">
-          <div className="quiz-builder-card">
-            <div className="quiz-builder-heading">
-              <div>
-                <span className="eyebrow">Quiz Builder</span>
-                <h2>Create course quiz</h2>
-                <p>Add single-answer or checkbox questions. Correct answers stay hidden from students until review.</p>
-              </div>
+        <section className="trainer-assessment-page">
+          <div className="trainer-assessment-hero">
+            <div>
+              <span className="eyebrow">Quiz Studio</span>
+              <h2>Build and monitor course quizzes</h2>
+              <p>Create assessments in a focused window. Correct answers stay hidden from students until review.</p>
             </div>
-            <form className="quiz-builder-form" onSubmit={saveQuiz}>
-              <input name="title" value={quizDraft.title} onChange={handleQuizDraftChange} placeholder="Quiz title" required />
-              <input name="description" value={quizDraft.description} onChange={handleQuizDraftChange} placeholder="Short description" required />
-              <input name="time_limit_minutes" value={quizDraft.time_limit_minutes} onChange={handleQuizDraftChange} type="number" min="1" />
-              <input name="passing_score" value={quizDraft.passing_score} onChange={handleQuizDraftChange} type="number" min="1" max="100" />
-              <input name="starts_at" value={quizDraft.starts_at} onChange={handleQuizDraftChange} type="datetime-local" />
-              <input name="ends_at" value={quizDraft.ends_at} onChange={handleQuizDraftChange} type="datetime-local" />
-              <textarea name="prompt" value={quizDraft.prompt} onChange={handleQuizDraftChange} placeholder="Question prompt" />
-              <select name="type" value={quizDraft.type} onChange={handleQuizDraftChange}>
-                <option value="single">Single option</option>
-                <option value="multiple">Multiple checkbox</option>
-              </select>
-              <textarea name="options" value={quizDraft.options} onChange={handleQuizDraftChange} placeholder={'Options, one per line\nExample:\nlet\nvar\nconst'} />
-              <input name="correct" value={quizDraft.correct} onChange={handleQuizDraftChange} placeholder="Correct letters: A or A,C" />
-              <textarea name="explanation" value={quizDraft.explanation} onChange={handleQuizDraftChange} placeholder="Review explanation" />
-              <button className="button secondary" type="button" onClick={addDraftQuestion}>Add question</button>
-              <button className="button primary" type="submit">Create quiz</button>
-            </form>
-            <div className="draft-question-list">
-              {draftQuestions.map((question, index) => (
-                <article key={question.id}>
-                  <span>Question {index + 1}</span>
-                  <strong>{question.prompt}</strong>
-                  <small>{question.type} answer</small>
+            <button className="button primary" type="button" onClick={() => setShowQuizBuilder(true)}>
+              Create quiz
+            </button>
+          </div>
+
+          <div className="assessment-card-grid">
+            {quizzes.length === 0 ? (
+              <div className="assessment-empty">
+                <h3>No quizzes published</h3>
+                <p>Create the first quiz for this course when your question set is ready.</p>
+              </div>
+            ) : (
+              quizzes.map((quiz) => (
+                <article key={quiz.id} className="assessment-card">
+                  <div>
+                    <span>{quiz.time_limit_minutes} min / pass {quiz.passing_score}%</span>
+                    <h2>{quiz.title}</h2>
+                    <p>{quiz.description}</p>
+                    <small>{formatQuizDateTime(quiz.starts_at)} to {formatQuizDateTime(quiz.ends_at)}</small>
+                  </div>
+                  <button className="button secondary small" type="button" onClick={() => loadAnalytics(quiz)}>
+                    View results
+                  </button>
                 </article>
-              ))}
+              ))
+            )}
+          </div>
+
+          {showQuizBuilder && (
+            <div className="modal-backdrop">
+              <section className="trainer-modal quiz-creation-modal">
+                <div className="modal-heading">
+                  <div>
+                    <span className="eyebrow">Create Quiz</span>
+                    <h2>Question builder</h2>
+                    <p>Add options and mark the correct answer privately for grading.</p>
+                  </div>
+                  <button className="button secondary small" type="button" onClick={() => setShowQuizBuilder(false)}>Close</button>
+                </div>
+                <form className="quiz-builder-form polished-builder-form" onSubmit={saveQuiz}>
+                  <input name="title" value={quizDraft.title} onChange={handleQuizDraftChange} placeholder="Quiz title" required />
+                  <input name="description" value={quizDraft.description} onChange={handleQuizDraftChange} placeholder="Short description" required />
+                  <input name="time_limit_minutes" value={quizDraft.time_limit_minutes} onChange={handleQuizDraftChange} type="number" min="1" />
+                  <input name="passing_score" value={quizDraft.passing_score} onChange={handleQuizDraftChange} type="number" min="1" max="100" />
+                  <input name="starts_at" value={quizDraft.starts_at} onChange={handleQuizDraftChange} type="datetime-local" />
+                  <input name="ends_at" value={quizDraft.ends_at} onChange={handleQuizDraftChange} type="datetime-local" />
+                  <textarea name="prompt" value={quizDraft.prompt} onChange={handleQuizDraftChange} placeholder="Question prompt" />
+                  <select name="type" value={quizDraft.type} onChange={handleQuizDraftChange}>
+                    <option value="single">Single option</option>
+                    <option value="multiple">Multiple checkbox</option>
+                  </select>
+                  <textarea name="options" value={quizDraft.options} onChange={handleQuizDraftChange} placeholder={'Options, one per line\nExample:\nlet\nvar\nconst'} />
+                  <input name="correct" value={quizDraft.correct} onChange={handleQuizDraftChange} placeholder="Correct letters hidden from students: A or A,C" />
+                  <textarea name="explanation" value={quizDraft.explanation} onChange={handleQuizDraftChange} placeholder="Review explanation" />
+                  <button className="button secondary" type="button" onClick={addDraftQuestion}>Add question</button>
+                  <button className="button primary" type="submit">Publish quiz</button>
+                </form>
+                <div className="draft-question-list compact-draft-list">
+                  {draftQuestions.map((question, index) => (
+                    <article key={question.id}>
+                      <span>Question {index + 1}</span>
+                      <strong>{question.prompt}</strong>
+                      <small>{question.options.length} options / answer hidden</small>
+                    </article>
+                  ))}
+                </div>
+              </section>
             </div>
-          </div>
+          )}
 
-          <div className="quiz-analytics-grid">
-            {quizzes.map((quiz) => (
-              <article key={quiz.id} className="quiz-admin-card">
-                <div>
-                  <span>Quiz</span>
-                  <h2>{quiz.title}</h2>
-                  <p>{quiz.description}</p>
+          {showQuizResults && quizAnalytics && (
+            <div className="modal-backdrop">
+              <section className="trainer-modal results-modal">
+                <div className="modal-heading">
+                  <div>
+                    <span className="eyebrow">Quiz Results</span>
+                    <h2>{quizAnalytics.title}</h2>
+                  </div>
+                  <button className="button secondary small" type="button" onClick={() => setShowQuizResults(false)}>Close</button>
                 </div>
-                <button className="button secondary small" onClick={() => loadAnalytics(quiz)}>Results</button>
-              </article>
-            ))}
-          </div>
-
-          {quizAnalytics && (
-            <section className="quiz-results-panel">
-              <div className="quiz-result-bars">
-                <div style={{ '--value': `${quizAnalytics.pass_rate}%` }}>
-                  <span>Pass rate</span>
-                  <strong>{quizAnalytics.pass_rate}%</strong>
+                <div className="quiz-result-bars">
+                  <div style={{ '--value': `${quizAnalytics.pass_rate}%` }}><span>Pass rate</span><strong>{quizAnalytics.pass_rate}%</strong></div>
+                  <div><span>Attempted</span><strong>{quizAnalytics.attempted}</strong></div>
+                  <div><span>Passed</span><strong>{quizAnalytics.passed}</strong></div>
+                  <div><span>Failed</span><strong>{quizAnalytics.failed}</strong></div>
                 </div>
-                <div>
-                  <span>Attempted</span>
-                  <strong>{quizAnalytics.attempted}</strong>
+                <div className="quiz-student-table">
+                  {quizAnalytics.attempts.map((attempt) => (
+                    <article key={attempt.id}>
+                      <strong>{attempt.student_name || attempt.student_username || `Student ${attempt.user_id}`}</strong>
+                      <span>{attempt.score}%</span>
+                      <small className={attempt.passed ? 'passed' : 'failed'}>{attempt.passed ? 'Passed' : 'Failed'}</small>
+                    </article>
+                  ))}
+                  {quizAnalytics.not_attempted?.map((request) => (
+                    <article key={`pending-${request.user_id}`}>
+                      <strong>{request.student_name || request.student_username || `Student ${request.user_id}`}</strong>
+                      <span>--</span>
+                      <small>Not attempted</small>
+                    </article>
+                  ))}
                 </div>
-                <div>
-                  <span>Passed</span>
-                  <strong>{quizAnalytics.passed}</strong>
-                </div>
-                <div>
-                  <span>Failed</span>
-                  <strong>{quizAnalytics.failed}</strong>
-                </div>
-              </div>
-              <div className="quiz-student-table">
-                {quizAnalytics.attempts.map((attempt) => (
-                  <article key={attempt.id}>
-                    <strong>{attempt.student_name || attempt.student_username || `Student ${attempt.user_id}`}</strong>
-                    <span>{attempt.score}%</span>
-                    <small className={attempt.passed ? 'passed' : 'failed'}>{attempt.passed ? 'Passed' : 'Failed'}</small>
-                  </article>
-                ))}
-                {quizAnalytics.not_attempted?.map((request) => (
-                  <article key={`pending-${request.user_id}`}>
-                    <strong>{request.student_name || request.student_username || `Student ${request.user_id}`}</strong>
-                    <span>--</span>
-                    <small>Not attempted</small>
-                  </article>
-                ))}
-              </div>
-            </section>
+              </section>
+            </div>
           )}
         </section>
       )
@@ -1114,7 +1182,8 @@ const CourseDetail = ({ token, user }) => {
       {error && <div className="alert">{error}</div>}
 
       {canManageLearning && showEditor && (
-        <section className="builder-editor-panel">
+        <div className="modal-backdrop">
+        <section className="trainer-modal builder-editor-panel">
           <div className="trainer-tools-heading">
             <div>
               <span className="eyebrow">{editingItem ? 'Update content' : 'Create content'}</span>
@@ -1158,6 +1227,7 @@ const CourseDetail = ({ token, user }) => {
             </button>
           </form>
         </section>
+        </div>
       )}
 
       <div className={canManageLearning ? 'builder-content-layout' : 'learning-layout'}>

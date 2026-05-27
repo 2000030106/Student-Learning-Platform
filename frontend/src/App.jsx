@@ -45,7 +45,7 @@ const App = () => {
             path="/quizzes"
             element={user ? <StudentQuizzesPage token={token} /> : <Navigate to="/login" />}
           />
-          <Route path="/practice" element={user ? <CodingPractice token={token} /> : <Navigate to="/login" />} />
+          <Route path="/practice" element={user ? <CodingPractice token={token} user={user} /> : <Navigate to="/login" />} />
           <Route path="/dashboard" element={user ? <Dashboard token={token} user={user} /> : <Navigate to="/login" />} />
           <Route
             path="/requests"

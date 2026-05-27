@@ -239,6 +239,18 @@ def _can_manage_course(current_user, course, db):
     return role == "admin" or (role == "trainer" and crud.can_trainer_manage_course(db, current_user.id, course.id))
 
 
+def _ensure_can_view_course_quizzes(current_user, course, db):
+    role = _role_value(current_user)
+    if role == "admin":
+        return
+    if role == "trainer":
+        if not crud.can_trainer_manage_course(db, current_user.id, course.id):
+            raise HTTPException(status_code=403, detail="Admin approval is required")
+        return
+    if crud.get_course_access_status(db, current_user.id, course.id) != "approved":
+        raise HTTPException(status_code=403, detail="Course access is not approved")
+
+
 @router.get("/{course_slug}/quizzes", response_model=list[schemas.QuizSummary])
 def list_course_quizzes(
     course_slug: str,
@@ -248,6 +260,7 @@ def list_course_quizzes(
     course = crud.get_course_by_slug(db, course_slug)
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
+    _ensure_can_view_course_quizzes(current_user, course, db)
     return crud.list_quizzes(db, course.id, current_user.id)
 
 
@@ -278,6 +291,7 @@ def read_course_quiz(
     quiz = crud.get_quiz(db, quiz_id)
     if not course or not quiz or quiz.course_id != course.id:
         raise HTTPException(status_code=404, detail="Quiz not found")
+    _ensure_can_view_course_quizzes(current_user, course, db)
     if _role_value(current_user) == "student":
         now = datetime.utcnow()
         if quiz.starts_at and now < quiz.starts_at:
