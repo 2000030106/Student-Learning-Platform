@@ -49,6 +49,7 @@ class Course(Base):
         cascade="all, delete-orphan",
         order_by="CourseLearningItem.position",
     )
+    assignments = relationship("CourseAssignment", back_populates="course", cascade="all, delete-orphan")
 
 
 class CourseAccessStatus(str, enum.Enum):
@@ -158,6 +159,50 @@ class CourseQuiz(Base):
 
     course = relationship("Course", back_populates="quizzes")
     attempts = relationship("QuizAttempt", back_populates="quiz", cascade="all, delete-orphan")
+
+
+class CourseAssignment(Base):
+    __tablename__ = "course_assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+    title = Column(String(180), nullable=False)
+    description = Column(Text, nullable=False)
+    questions = Column(Text, nullable=False)
+    due_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    course = relationship("Course", back_populates="assignments")
+    submissions = relationship("AssignmentSubmission", back_populates="assignment", cascade="all, delete-orphan")
+
+
+class AssignmentSubmission(Base):
+    __tablename__ = "assignment_submissions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    assignment_id = Column(Integer, ForeignKey("course_assignments.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    original_filename = Column(String(255), nullable=False)
+    stored_filename = Column(String(255), nullable=False)
+    file_path = Column(String(500), nullable=False)
+    content_type = Column(String(120), nullable=True)
+    note = Column(Text, nullable=True)
+    submitted_at = Column(DateTime, default=datetime.utcnow)
+
+    assignment = relationship("CourseAssignment", back_populates="submissions")
+    user = relationship("User")
+
+    @property
+    def student_name(self):
+        return self.user.name if self.user else None
+
+    @property
+    def student_username(self):
+        return self.user.username if self.user else None
+
+    @property
+    def student_email(self):
+        return self.user.email if self.user else None
 
 
 class QuizAttempt(Base):

@@ -9,6 +9,7 @@ import RequestsPage from './components/RequestsPage'
 import TrainerRequestsPage from './components/TrainerRequestsPage'
 import StudentQuizzesPage from './components/StudentQuizzesPage'
 import CodingPractice from './components/CodingPractice'
+import ProfilePage from './components/ProfilePage'
 import Navbar from './components/Navbar'
 
 const App = () => {
@@ -46,6 +47,7 @@ const App = () => {
             element={user ? <StudentQuizzesPage token={token} /> : <Navigate to="/login" />}
           />
           <Route path="/practice" element={user ? <CodingPractice token={token} user={user} /> : <Navigate to="/login" />} />
+          <Route path="/profile" element={user ? <ProfilePage token={token} user={user} setUser={setUser} /> : <Navigate to="/login" />} />
           <Route path="/dashboard" element={user ? <Dashboard token={token} user={user} /> : <Navigate to="/login" />} />
           <Route
             path="/requests"

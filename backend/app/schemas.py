@@ -36,6 +36,16 @@ class UserResponse(UserBase, ORMModel):
     created_at: datetime
 
 
+class UserProfileUpdate(BaseModel):
+    email: EmailStr
+    phone: Optional[str] = None
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -169,6 +179,12 @@ class QuizCreate(BaseModel):
     questions: list[QuizQuestion]
 
 
+class QuizScheduleUpdate(BaseModel):
+    time_limit_minutes: int
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+
+
 class QuizSummary(ORMModel):
     id: int
     course_id: int
@@ -235,6 +251,45 @@ class QuizAnalytics(BaseModel):
     pass_rate: int
     attempts: list[QuizAttemptResponse]
     not_attempted: list[CourseAccessRequestResponse] = []
+
+
+class AssignmentCreate(BaseModel):
+    title: str
+    description: str
+    questions: str
+    due_at: Optional[datetime] = None
+
+
+class AssignmentResponse(ORMModel):
+    id: int
+    course_id: int
+    title: str
+    description: str
+    questions: str
+    due_at: Optional[datetime] = None
+    created_at: datetime
+    submitted: bool = False
+
+
+class AssignmentSubmissionResponse(ORMModel):
+    id: int
+    assignment_id: int
+    user_id: int
+    student_name: Optional[str] = None
+    student_username: Optional[str] = None
+    student_email: Optional[str] = None
+    original_filename: str
+    stored_filename: str
+    content_type: Optional[str] = None
+    note: Optional[str] = None
+    submitted_at: datetime
+
+
+class AssignmentAnalytics(BaseModel):
+    assignment_id: int
+    title: str
+    submissions: list[AssignmentSubmissionResponse]
+    not_submitted: list[CourseAccessRequestResponse] = []
 
 
 class CodingTestCase(BaseModel):

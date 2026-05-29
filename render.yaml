@@ -15,4 +15,5 @@ services:
 
 databases:
   - name: student-learning-platform-db
+    plan: free
     region: singapore

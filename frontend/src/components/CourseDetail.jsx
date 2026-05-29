@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import {
+  createAssignment,
   createCodingContest,
   createLearningItem,
   createQuiz,
   deleteCodingContest,
+  downloadAssignmentSubmission,
+  fetchAssignmentAnalytics,
+  fetchAssignments,
   fetchCodingContestAnalytics,
   fetchCodingContests,
   deleteLearningItem,
@@ -18,7 +22,9 @@ import {
   requestAccess,
   requestToTeachCourse,
   submitCodingContest,
+  submitAssignment,
   submitQuizAttempt,
+  updateQuizSchedule,
   updateLearningItem,
 } from '../api'
 
@@ -26,6 +32,7 @@ const tabs = [
   { id: 'overview', label: 'Overview' },
   { id: 'content', label: 'Content' },
   { id: 'quiz', label: 'Quiz' },
+  { id: 'assignments', label: 'Assignments' },
   { id: 'coding', label: 'Coding' },
   { id: 'videos', label: 'Videos' },
 ]
@@ -52,6 +59,7 @@ const CourseDetail = ({ token, user }) => {
   const [showEditor, setShowEditor] = useState(false)
   const [showQuizBuilder, setShowQuizBuilder] = useState(false)
   const [showQuizResults, setShowQuizResults] = useState(false)
+  const [showQuizTimeEditor, setShowQuizTimeEditor] = useState(false)
   const [showCodingBuilder, setShowCodingBuilder] = useState(false)
   const [showCodingResults, setShowCodingResults] = useState(false)
   const [quizzes, setQuizzes] = useState([])
@@ -61,6 +69,14 @@ const CourseDetail = ({ token, user }) => {
   const [timeLeft, setTimeLeft] = useState(0)
   const [quizReview, setQuizReview] = useState(null)
   const [quizAnalytics, setQuizAnalytics] = useState(null)
+  const [editingQuiz, setEditingQuiz] = useState(null)
+  const [quizTimeDraft, setQuizTimeDraft] = useState({ time_limit_minutes: 10, starts_at: '', ends_at: '' })
+  const [assignments, setAssignments] = useState([])
+  const [showAssignmentBuilder, setShowAssignmentBuilder] = useState(false)
+  const [showAssignmentResults, setShowAssignmentResults] = useState(false)
+  const [assignmentAnalytics, setAssignmentAnalytics] = useState(null)
+  const [assignmentDraft, setAssignmentDraft] = useState({ title: '', description: '', questions: '', due_at: '' })
+  const [assignmentUpload, setAssignmentUpload] = useState({})
   const [codingContests, setCodingContests] = useState([])
   const [codingAnalytics, setCodingAnalytics] = useState(null)
   const [codingAnswer, setCodingAnswer] = useState('')
@@ -109,6 +125,7 @@ const CourseDetail = ({ token, user }) => {
     setAccessStatus(data.access_status || 'approved')
     setSelectedModuleId((current) => current || data.modules[0]?.id || null)
     fetchQuizzes(slug, token).then(setQuizzes).catch(() => {})
+    fetchAssignments(slug, token).then(setAssignments).catch(() => {})
     fetchCodingContests(slug, token).then((items) => {
       setCodingContests(items)
       setSelectedContestId((current) => current || items[0]?.id || null)
@@ -431,6 +448,40 @@ const CourseDetail = ({ token, user }) => {
     setShowQuizResults(true)
   }
 
+  const beginQuizTimeEdit = (quiz) => {
+    setEditingQuiz(quiz)
+    setQuizTimeDraft({
+      time_limit_minutes: quiz.time_limit_minutes,
+      starts_at: quiz.starts_at ? quiz.starts_at.slice(0, 16) : '',
+      ends_at: quiz.ends_at ? quiz.ends_at.slice(0, 16) : '',
+    })
+    setShowQuizTimeEditor(true)
+  }
+
+  const saveQuizTime = async (event) => {
+    event.preventDefault()
+    setError('')
+    setMessage('')
+    try {
+      await updateQuizSchedule(
+        slug,
+        editingQuiz.id,
+        {
+          time_limit_minutes: Number(quizTimeDraft.time_limit_minutes),
+          starts_at: quizTimeDraft.starts_at ? new Date(quizTimeDraft.starts_at).toISOString() : null,
+          ends_at: quizTimeDraft.ends_at ? new Date(quizTimeDraft.ends_at).toISOString() : null,
+        },
+        token,
+      )
+      setQuizzes(await fetchQuizzes(slug, token))
+      setShowQuizTimeEditor(false)
+      setEditingQuiz(null)
+      setMessage('Quiz timing updated and students were notified.')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Unable to update quiz timing.')
+    }
+  }
+
   const returnToQuizList = () => {
     setQuizDetail(null)
     setQuizReview(null)
@@ -446,6 +497,61 @@ const CourseDetail = ({ token, user }) => {
       ...prev,
       [name]: name === 'marks' ? Number(value) : value,
     }))
+  }
+
+  const handleAssignmentDraftChange = (event) => {
+    const { name, value } = event.target
+    setAssignmentDraft((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const saveAssignment = async (event) => {
+    event.preventDefault()
+    setError('')
+    setMessage('')
+    try {
+      await createAssignment(
+        slug,
+        {
+          ...assignmentDraft,
+          due_at: assignmentDraft.due_at ? new Date(assignmentDraft.due_at).toISOString() : null,
+        },
+        token,
+      )
+      setAssignments(await fetchAssignments(slug, token))
+      setAssignmentDraft({ title: '', description: '', questions: '', due_at: '' })
+      setShowAssignmentBuilder(false)
+      setMessage('Assignment created successfully.')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Unable to create assignment.')
+    }
+  }
+
+  const uploadAssignmentFile = async (assignment) => {
+    const file = assignmentUpload[assignment.id]?.file
+    const note = assignmentUpload[assignment.id]?.note || ''
+    if (!file) {
+      setError('Choose a file before uploading your assignment.')
+      return
+    }
+    setError('')
+    setMessage('')
+    try {
+      await submitAssignment(slug, assignment.id, file, note, token)
+      setAssignments(await fetchAssignments(slug, token))
+      setAssignmentUpload((prev) => ({ ...prev, [assignment.id]: { file: null, note: '' } }))
+      setMessage('Assignment uploaded. Trainer will receive it by email and can view it here.')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Unable to upload assignment.')
+    }
+  }
+
+  const loadAssignmentAnalytics = async (assignment) => {
+    try {
+      setAssignmentAnalytics(await fetchAssignmentAnalytics(slug, assignment.id, token))
+      setShowAssignmentResults(true)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Unable to load assignment submissions.')
+    }
   }
 
   const addCodingQuestion = () => {
@@ -596,6 +702,10 @@ const CourseDetail = ({ token, user }) => {
 
     if (activeTab === 'coding') {
       return renderCodingContent()
+    }
+
+    if (activeTab === 'assignments') {
+      return renderAssignmentContent()
     }
 
     if (activeTab === 'overview') {
@@ -888,6 +998,138 @@ const CourseDetail = ({ token, user }) => {
     )
   }
 
+  const renderAssignmentContent = () => {
+    if (canManageLearning) {
+      return (
+        <section className="trainer-assessment-page assignment-studio-page">
+          <div className="trainer-assessment-hero">
+            <div>
+              <span className="eyebrow">Assignment Studio</span>
+              <h2>Create assignment questions</h2>
+              <p>Publish written tasks, collect student files, and review submissions from the platform.</p>
+            </div>
+            <button className="button primary" type="button" onClick={() => setShowAssignmentBuilder(true)}>
+              Add assignment
+            </button>
+          </div>
+
+          <div className="assessment-card-grid">
+            {assignments.length === 0 ? (
+              <div className="assessment-empty">
+                <h3>No assignments published</h3>
+                <p>Create the first assignment with questions and an optional due date.</p>
+              </div>
+            ) : (
+              assignments.map((assignment) => (
+                <article key={assignment.id} className="assessment-card">
+                  <div>
+                    <span>Due {formatQuizDateTime(assignment.due_at)}</span>
+                    <h2>{assignment.title}</h2>
+                    <p>{assignment.description}</p>
+                  </div>
+                  <button className="button secondary small" type="button" onClick={() => loadAssignmentAnalytics(assignment)}>
+                    View uploads
+                  </button>
+                </article>
+              ))
+            )}
+          </div>
+
+          {showAssignmentBuilder && (
+            <div className="modal-backdrop">
+              <section className="trainer-modal quiz-creation-modal">
+                <div className="modal-heading">
+                  <div>
+                    <span className="eyebrow">Create Assignment</span>
+                    <h2>Question brief</h2>
+                    <p>Students will see these questions and upload their completed file.</p>
+                  </div>
+                  <button className="button secondary small" type="button" onClick={() => setShowAssignmentBuilder(false)}>Close</button>
+                </div>
+                <form className="quiz-builder-form polished-builder-form" onSubmit={saveAssignment}>
+                  <input name="title" value={assignmentDraft.title} onChange={handleAssignmentDraftChange} placeholder="Assignment title" required />
+                  <input name="description" value={assignmentDraft.description} onChange={handleAssignmentDraftChange} placeholder="Short description" required />
+                  <input name="due_at" value={assignmentDraft.due_at} onChange={handleAssignmentDraftChange} type="datetime-local" />
+                  <textarea className="wide" name="questions" value={assignmentDraft.questions} onChange={handleAssignmentDraftChange} placeholder="Assignment questions or instructions" required />
+                  <button className="button primary" type="submit">Publish assignment</button>
+                </form>
+              </section>
+            </div>
+          )}
+
+          {showAssignmentResults && assignmentAnalytics && (
+            <div className="modal-backdrop">
+              <section className="trainer-modal results-modal">
+                <div className="modal-heading">
+                  <div>
+                    <span className="eyebrow">Assignment Uploads</span>
+                    <h2>{assignmentAnalytics.title}</h2>
+                  </div>
+                  <button className="button secondary small" type="button" onClick={() => setShowAssignmentResults(false)}>Close</button>
+                </div>
+                <div className="quiz-student-table assignment-submission-table">
+                  {assignmentAnalytics.submissions.map((submission) => (
+                    <article key={submission.id}>
+                      <strong>{submission.student_name || submission.student_username || `Student ${submission.user_id}`}</strong>
+                      <span>{submission.original_filename}</span>
+                      <button className="button secondary small" type="button" onClick={() => downloadAssignmentSubmission(slug, assignmentAnalytics.assignment_id, submission.id, submission.original_filename, token)}>
+                        Download
+                      </button>
+                    </article>
+                  ))}
+                  {assignmentAnalytics.not_submitted?.map((request) => (
+                    <article key={`missing-${request.user_id}`}>
+                      <strong>{request.student_name || request.student_username || `Student ${request.user_id}`}</strong>
+                      <span>Not uploaded</span>
+                      <small>Pending</small>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </div>
+          )}
+        </section>
+      )
+    }
+
+    return (
+      <section className="assignment-student-page">
+        {assignments.length === 0 ? (
+          <div className="curriculum-empty">
+            <h3>No assignments yet</h3>
+            <p>Your trainer has not published assignments for this course.</p>
+          </div>
+        ) : (
+          assignments.map((assignment) => (
+            <article key={assignment.id} className="assignment-card">
+              <div>
+                <span>Due {formatQuizDateTime(assignment.due_at)}</span>
+                <h2>{assignment.title}</h2>
+                <p>{assignment.description}</p>
+                <pre>{assignment.questions}</pre>
+              </div>
+              <div className="assignment-upload-box">
+                {assignment.submitted && <strong className="submitted-note">Uploaded</strong>}
+                <textarea
+                  value={assignmentUpload[assignment.id]?.note || ''}
+                  onChange={(event) => setAssignmentUpload((prev) => ({ ...prev, [assignment.id]: { ...prev[assignment.id], note: event.target.value } }))}
+                  placeholder="Optional note for trainer"
+                />
+                <input
+                  type="file"
+                  onChange={(event) => setAssignmentUpload((prev) => ({ ...prev, [assignment.id]: { ...prev[assignment.id], file: event.target.files?.[0] } }))}
+                />
+                <button className="button primary small" type="button" onClick={() => uploadAssignmentFile(assignment)}>
+                  Upload assignment
+                </button>
+              </div>
+            </article>
+          ))
+        )}
+      </section>
+    )
+  }
+
   const renderQuizContent = () => {
     if (canManageLearning) {
       return (
@@ -918,13 +1160,39 @@ const CourseDetail = ({ token, user }) => {
                     <p>{quiz.description}</p>
                     <small>{formatQuizDateTime(quiz.starts_at)} to {formatQuizDateTime(quiz.ends_at)}</small>
                   </div>
-                  <button className="button secondary small" type="button" onClick={() => loadAnalytics(quiz)}>
-                    View results
-                  </button>
+                  <div className="assessment-card-actions">
+                    <button className="button secondary small" type="button" onClick={() => beginQuizTimeEdit(quiz)}>
+                      Edit time
+                    </button>
+                    <button className="button secondary small" type="button" onClick={() => loadAnalytics(quiz)}>
+                      View results
+                    </button>
+                  </div>
                 </article>
               ))
             )}
           </div>
+
+          {showQuizTimeEditor && editingQuiz && (
+            <div className="modal-backdrop">
+              <section className="trainer-modal schedule-modal">
+                <div className="modal-heading">
+                  <div>
+                    <span className="eyebrow">Quiz Timing</span>
+                    <h2>{editingQuiz.title}</h2>
+                    <p>Update the time limit or availability window for this quiz.</p>
+                  </div>
+                  <button className="button secondary small" type="button" onClick={() => setShowQuizTimeEditor(false)}>Close</button>
+                </div>
+                <form className="quiz-builder-form polished-builder-form" onSubmit={saveQuizTime}>
+                  <input value={quizTimeDraft.time_limit_minutes} onChange={(event) => setQuizTimeDraft({ ...quizTimeDraft, time_limit_minutes: event.target.value })} type="number" min="1" />
+                  <input value={quizTimeDraft.starts_at} onChange={(event) => setQuizTimeDraft({ ...quizTimeDraft, starts_at: event.target.value })} type="datetime-local" />
+                  <input value={quizTimeDraft.ends_at} onChange={(event) => setQuizTimeDraft({ ...quizTimeDraft, ends_at: event.target.value })} type="datetime-local" />
+                  <button className="button primary" type="submit">Save timing</button>
+                </form>
+              </section>
+            </div>
+          )}
 
           {showQuizBuilder && (
             <div className="modal-backdrop">
@@ -1233,7 +1501,7 @@ const CourseDetail = ({ token, user }) => {
       <div className={canManageLearning ? 'builder-content-layout' : 'learning-layout'}>
         {renderLearningContent()}
 
-        {canManageLearning && activeTab !== 'quiz' && activeTab !== 'coding' && (
+        {canManageLearning && activeTab !== 'quiz' && activeTab !== 'coding' && activeTab !== 'assignments' && (
           <section className="builder-material-list">
             <div className="builder-list-heading">
               <span className="eyebrow">Added Material</span>

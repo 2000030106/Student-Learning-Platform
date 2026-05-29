@@ -24,6 +24,7 @@ const Navbar = ({ user, onSignOut }) => {
             {user.role === 'admin' && <Link to="/requests">Student Requests</Link>}
             {user.role === 'admin' && <Link to="/trainer-requests">Trainer Requests</Link>}
             <Link to="/dashboard">Dashboard</Link>
+            <Link to="/profile">Profile</Link>
             <button className="button secondary" onClick={onSignOut}>
               Sign out
             </button>

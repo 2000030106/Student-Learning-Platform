@@ -31,3 +31,22 @@ def register_trainer(user_in: schemas.UserCreate, db: Session = Depends(get_db))
 @router.get("/me", response_model=schemas.UserResponse)
 def read_current_user(current_user: schemas.UserResponse = Depends(auth_module.get_current_active_user)):
     return current_user
+
+
+@router.put("/me", response_model=schemas.UserResponse)
+def update_current_user(
+    profile_in: schemas.UserProfileUpdate,
+    current_user: schemas.UserResponse = Depends(auth_module.get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    return crud.update_user_profile(db, current_user.id, profile_in.model_dump())
+
+
+@router.post("/change-password", response_model=schemas.MessageResponse)
+def change_password(
+    password_in: schemas.PasswordChange,
+    current_user: schemas.UserResponse = Depends(auth_module.get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    crud.change_user_password(db, current_user.id, password_in.current_password, password_in.new_password)
+    return {"detail": "Password changed successfully"}

@@ -37,29 +37,40 @@ const AuthPage = ({ mode, setToken, setUser }) => {
   }
 
   return (
-    <section className="auth-panel">
+    <section className="auth-panel auth-experience">
+      <div className="auth-visual">
+        <span className="eyebrow">Innolance Learning</span>
+        <h1>{mode === 'login' ? 'Continue your learning workspace.' : 'Create your student or trainer account.'}</h1>
+        <p>{mode === 'login' ? 'Access courses, quizzes, assignments, and coding practice from one focused dashboard.' : 'Students can request course access. Trainers can build quizzes, assignments, and learning material after approval.'}</p>
+        <div className="auth-metrics">
+          <article><strong>Quiz</strong><span>Timed tests</span></article>
+          <article><strong>Tasks</strong><span>File uploads</span></article>
+          <article><strong>Code</strong><span>Practice lab</span></article>
+        </div>
+      </div>
       <div className="auth-card">
-        <h2>{mode === 'login' ? 'Sign in' : 'Create your account'}</h2>
-        {mode === 'register' && (
-          <div className="field-group">
-            <label>Name</label>
-            <input name="name" value={form.name} onChange={handleChange} placeholder="Full name" />
-          </div>
-        )}
+        <span className="auth-chip">{mode === 'login' ? 'Welcome back' : 'New account'}</span>
+        <h2>{mode === 'login' ? 'Sign in' : 'Register'}</h2>
         <form onSubmit={handleSubmit}>
+          {mode === 'register' && (
+            <div className="field-group">
+              <label>Name</label>
+              <input name="name" value={form.name} onChange={handleChange} placeholder="Full name" required />
+            </div>
+          )}
           <div className="field-group">
             <label>Username</label>
-            <input name="username" value={form.username} onChange={handleChange} required />
+            <input name="username" value={form.username} onChange={handleChange} placeholder="Enter username" required />
           </div>
           {mode === 'register' && (
             <>
               <div className="field-group">
                 <label>Email</label>
-                <input name="email" value={form.email} onChange={handleChange} type="email" required />
+                <input name="email" value={form.email} onChange={handleChange} type="email" placeholder="name@example.com" required />
               </div>
               <div className="field-group">
                 <label>Phone</label>
-                <input name="phone" value={form.phone} onChange={handleChange} />
+                <input name="phone" value={form.phone} onChange={handleChange} placeholder="Mobile number" />
               </div>
               <div className="field-group">
                 <label>Account Type</label>
@@ -72,7 +83,7 @@ const AuthPage = ({ mode, setToken, setUser }) => {
           )}
           <div className="field-group">
             <label>Password</label>
-            <input name="password" value={form.password} onChange={handleChange} type="password" required />
+            <input name="password" value={form.password} onChange={handleChange} type="password" placeholder="Enter password" required />
           </div>
           {error && <div className="alert">{error}</div>}
           <button className="button primary" type="submit">

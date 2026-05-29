@@ -1,6 +1,7 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from .. import schemas, crud, auth
@@ -251,6 +252,10 @@ def _ensure_can_view_course_quizzes(current_user, course, db):
         raise HTTPException(status_code=403, detail="Course access is not approved")
 
 
+def _ensure_can_view_course_assignments(current_user, course, db):
+    _ensure_can_view_course_quizzes(current_user, course, db)
+
+
 @router.get("/{course_slug}/quizzes", response_model=list[schemas.QuizSummary])
 def list_course_quizzes(
     course_slug: str,
@@ -278,6 +283,24 @@ def create_course_quiz(
         raise HTTPException(status_code=403, detail="Admin approval is required before creating quizzes")
     quiz = crud.create_quiz(db, course.id, quiz_in.model_dump())
     return crud.list_quizzes(db, course.id, current_user.id)[-1]
+
+
+@router.put("/{course_slug}/quizzes/{quiz_id}/schedule", response_model=schemas.QuizSummary)
+def update_course_quiz_schedule(
+    course_slug: str,
+    quiz_id: int,
+    schedule_in: schemas.QuizScheduleUpdate,
+    current_user: schemas.UserResponse = Depends(auth.require_role(["trainer", "admin"])),
+    db: Session = Depends(get_db),
+):
+    course = crud.get_course_by_slug(db, course_slug)
+    quiz = crud.get_quiz(db, quiz_id)
+    if not course or not quiz or quiz.course_id != course.id:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    if not _can_manage_course(current_user, course, db):
+        raise HTTPException(status_code=403, detail="Admin approval is required")
+    crud.update_quiz_schedule(db, quiz, schedule_in.model_dump())
+    return next(item for item in crud.list_quizzes(db, course.id, current_user.id) if item["id"] == quiz.id)
 
 
 @router.get("/{course_slug}/quizzes/{quiz_id}", response_model=schemas.QuizDetail)
@@ -354,6 +377,89 @@ def read_course_quiz_analytics(
     if not _can_manage_course(current_user, course, db):
         raise HTTPException(status_code=403, detail="Admin approval is required")
     return crud.get_quiz_analytics(db, quiz)
+
+
+@router.get("/{course_slug}/assignments", response_model=list[schemas.AssignmentResponse])
+def list_course_assignments(
+    course_slug: str,
+    current_user: schemas.UserResponse = Depends(auth.get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    course = crud.get_course_by_slug(db, course_slug)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    _ensure_can_view_course_assignments(current_user, course, db)
+    return crud.list_assignments(db, course.id, current_user.id)
+
+
+@router.post("/{course_slug}/assignments", response_model=schemas.AssignmentResponse)
+def create_course_assignment(
+    course_slug: str,
+    assignment_in: schemas.AssignmentCreate,
+    current_user: schemas.UserResponse = Depends(auth.require_role(["trainer", "admin"])),
+    db: Session = Depends(get_db),
+):
+    course = crud.get_course_by_slug(db, course_slug)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    if not _can_manage_course(current_user, course, db):
+        raise HTTPException(status_code=403, detail="Admin approval is required before creating assignments")
+    assignment = crud.create_assignment(db, course.id, assignment_in.model_dump())
+    return crud.list_assignments(db, course.id, current_user.id)[0] if assignment else None
+
+
+@router.post("/{course_slug}/assignments/{assignment_id}/submit", response_model=schemas.AssignmentSubmissionResponse)
+def submit_course_assignment(
+    course_slug: str,
+    assignment_id: int,
+    note: str = Form(""),
+    file: UploadFile = File(...),
+    current_user: schemas.UserResponse = Depends(auth.require_role(["student"])),
+    db: Session = Depends(get_db),
+):
+    course = crud.get_course_by_slug(db, course_slug)
+    assignment = crud.get_assignment(db, assignment_id)
+    if not course or not assignment or assignment.course_id != course.id:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    if crud.get_course_access_status(db, current_user.id, course.id) != "approved":
+        raise HTTPException(status_code=403, detail="Course access is not approved")
+    return crud.submit_assignment(db, assignment, current_user, file, note)
+
+
+@router.get("/{course_slug}/assignments/{assignment_id}/analytics", response_model=schemas.AssignmentAnalytics)
+def read_course_assignment_analytics(
+    course_slug: str,
+    assignment_id: int,
+    current_user: schemas.UserResponse = Depends(auth.require_role(["trainer", "admin"])),
+    db: Session = Depends(get_db),
+):
+    course = crud.get_course_by_slug(db, course_slug)
+    assignment = crud.get_assignment(db, assignment_id)
+    if not course or not assignment or assignment.course_id != course.id:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    if not _can_manage_course(current_user, course, db):
+        raise HTTPException(status_code=403, detail="Admin approval is required")
+    return crud.get_assignment_analytics(db, assignment)
+
+
+@router.get("/{course_slug}/assignments/{assignment_id}/submissions/{submission_id}/download")
+def download_assignment_submission(
+    course_slug: str,
+    assignment_id: int,
+    submission_id: int,
+    current_user: schemas.UserResponse = Depends(auth.require_role(["trainer", "admin"])),
+    db: Session = Depends(get_db),
+):
+    course = crud.get_course_by_slug(db, course_slug)
+    assignment = crud.get_assignment(db, assignment_id)
+    if not course or not assignment or assignment.course_id != course.id:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    if not _can_manage_course(current_user, course, db):
+        raise HTTPException(status_code=403, detail="Admin approval is required")
+    submission = next((item for item in assignment.submissions if item.id == submission_id), None)
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    return FileResponse(submission.file_path, filename=submission.original_filename)
 
 
 @router.get("/{course_slug}/coding-contests", response_model=list[schemas.CodingContestResponse])

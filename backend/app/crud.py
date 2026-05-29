@@ -3,8 +3,11 @@ import os
 import subprocess
 import sys
 import tempfile
+import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from uuid import uuid4
 
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
@@ -37,6 +40,33 @@ def create_user(db: Session, user_in: schemas.UserCreate, role: models.UserRole 
     db.add(user)
     db.commit()
     db.refresh(user)
+    return user
+
+
+def update_user_profile(db: Session, user_id: int, profile_data: dict):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    existing_email = get_user_by_email(db, profile_data["email"])
+    if existing_email and existing_email.id != user.id:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    user.email = profile_data["email"]
+    user.phone = profile_data.get("phone")
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def change_user_password(db: Session, user_id: int, current_password: str, new_password: str):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not security.verify_password(current_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+    user.hashed_password = security.get_password_hash(new_password)
+    db.commit()
     return user
 
 
@@ -367,6 +397,38 @@ def create_quiz(db: Session, course_id: int, quiz_data: dict):
     return quiz
 
 
+def update_quiz_schedule(db: Session, quiz: models.CourseQuiz, schedule_data: dict):
+    quiz.time_limit_minutes = schedule_data["time_limit_minutes"]
+    quiz.starts_at = schedule_data.get("starts_at")
+    quiz.ends_at = schedule_data.get("ends_at")
+    db.commit()
+    db.refresh(quiz)
+    approved_requests = (
+        db.query(models.CourseAccessRequest)
+        .filter(
+            models.CourseAccessRequest.course_id == quiz.course_id,
+            models.CourseAccessRequest.status == models.CourseAccessStatus.approved,
+        )
+        .all()
+    )
+    for request in approved_requests:
+        if request.user and request.user.email:
+            email_utils.send_email(
+                request.user.email,
+                f"Quiz timing updated: {quiz.title}",
+                (
+                    f"Hello {request.user.name},\n\n"
+                    f"The quiz timing has been updated for {quiz.course.title if quiz.course else 'your course'}.\n\n"
+                    f"Quiz: {quiz.title}\n"
+                    f"Time limit: {quiz.time_limit_minutes} minutes\n"
+                    f"Start time: {quiz.starts_at or 'Open now'}\n"
+                    f"End time: {quiz.ends_at or 'No fixed end time'}\n\n"
+                    "Please check the Student Learning Platform before attempting it."
+                ),
+            )
+    return quiz
+
+
 def get_quiz_detail(db: Session, quiz: models.CourseQuiz, user_id: Optional[int] = None):
     summary = _public_quiz_summary(db, quiz, user_id)
     questions = []
@@ -479,6 +541,146 @@ def get_quiz_analytics(db: Session, quiz: models.CourseQuiz):
         "pass_rate": round((passed / attempted) * 100) if attempted else 0,
         "attempts": attempts,
         "not_attempted": not_attempted,
+    }
+
+
+def _public_assignment_summary(db: Session, assignment: models.CourseAssignment, user_id: Optional[int] = None):
+    submitted = False
+    if user_id:
+        submitted = (
+            db.query(models.AssignmentSubmission)
+            .filter(
+                models.AssignmentSubmission.assignment_id == assignment.id,
+                models.AssignmentSubmission.user_id == user_id,
+            )
+            .first()
+            is not None
+        )
+    return {
+        "id": assignment.id,
+        "course_id": assignment.course_id,
+        "title": assignment.title,
+        "description": assignment.description,
+        "questions": assignment.questions,
+        "due_at": assignment.due_at,
+        "created_at": assignment.created_at,
+        "submitted": submitted,
+    }
+
+
+def list_assignments(db: Session, course_id: int, user_id: Optional[int] = None):
+    assignments = (
+        db.query(models.CourseAssignment)
+        .filter(models.CourseAssignment.course_id == course_id)
+        .order_by(models.CourseAssignment.created_at.desc())
+        .all()
+    )
+    return [_public_assignment_summary(db, assignment, user_id) for assignment in assignments]
+
+
+def get_assignment(db: Session, assignment_id: int):
+    return db.query(models.CourseAssignment).filter(models.CourseAssignment.id == assignment_id).first()
+
+
+def create_assignment(db: Session, course_id: int, assignment_data: dict):
+    assignment = models.CourseAssignment(course_id=course_id, **assignment_data)
+    db.add(assignment)
+    db.commit()
+    db.refresh(assignment)
+    approved_requests = (
+        db.query(models.CourseAccessRequest)
+        .filter(
+            models.CourseAccessRequest.course_id == course_id,
+            models.CourseAccessRequest.status == models.CourseAccessStatus.approved,
+        )
+        .all()
+    )
+    for request in approved_requests:
+        if request.user and request.user.email:
+            email_utils.send_email(
+                request.user.email,
+                f"New assignment: {assignment.title}",
+                (
+                    f"Hello {request.user.name},\n\n"
+                    f"A new assignment has been added for {assignment.course.title if assignment.course else 'your course'}.\n\n"
+                    f"Assignment: {assignment.title}\n"
+                    f"Due: {assignment.due_at or 'No due date set'}\n\n"
+                    "Open the course assignment tab to view questions and upload your completed file."
+                ),
+            )
+    return assignment
+
+
+def submit_assignment(db: Session, assignment: models.CourseAssignment, user: models.User, upload_file, note: str = ""):
+    upload_root = Path(os.getenv("UPLOAD_DIR", "uploads")) / "assignments" / str(assignment.id)
+    upload_root.mkdir(parents=True, exist_ok=True)
+    safe_name = Path(upload_file.filename or "assignment-file").name
+    stored_filename = f"{uuid4().hex}_{safe_name}"
+    file_path = upload_root / stored_filename
+    with file_path.open("wb") as target:
+        shutil.copyfileobj(upload_file.file, target)
+    submission = models.AssignmentSubmission(
+        assignment_id=assignment.id,
+        user_id=user.id,
+        original_filename=safe_name,
+        stored_filename=stored_filename,
+        file_path=os.fspath(file_path),
+        content_type=upload_file.content_type,
+        note=note,
+    )
+    db.add(submission)
+    db.commit()
+    db.refresh(submission)
+
+    recipients = [trainer.email for trainer in db.query(models.User).filter(models.User.role == models.UserRole.admin).all()]
+    trainer_requests = (
+        db.query(models.TrainerCourseRequest)
+        .filter(
+            models.TrainerCourseRequest.course_id == assignment.course_id,
+            models.TrainerCourseRequest.status == models.CourseAccessStatus.approved,
+        )
+        .all()
+    )
+    recipients.extend(request.trainer.email for request in trainer_requests if request.trainer and request.trainer.email)
+    for email in sorted(set(filter(Boolean, recipients))):
+        email_utils.send_email_with_attachment(
+            email,
+            f"Assignment submitted: {assignment.title}",
+            (
+                f"Student: {user.name} ({user.username})\n"
+                f"Email: {user.email}\n"
+                f"Course: {assignment.course.title if assignment.course else assignment.course_id}\n"
+                f"Assignment: {assignment.title}\n"
+                f"Submitted at: {submission.submitted_at}\n"
+                f"Note: {note or 'No note'}"
+            ),
+            os.fspath(file_path),
+            safe_name,
+        )
+    return submission
+
+
+def get_assignment_analytics(db: Session, assignment: models.CourseAssignment):
+    submissions = (
+        db.query(models.AssignmentSubmission)
+        .filter(models.AssignmentSubmission.assignment_id == assignment.id)
+        .order_by(models.AssignmentSubmission.submitted_at.desc())
+        .all()
+    )
+    submitted_user_ids = {submission.user_id for submission in submissions}
+    approved_requests = (
+        db.query(models.CourseAccessRequest)
+        .filter(
+            models.CourseAccessRequest.course_id == assignment.course_id,
+            models.CourseAccessRequest.status == models.CourseAccessStatus.approved,
+        )
+        .all()
+    )
+    return {
+        "assignment_id": assignment.id,
+        "title": assignment.title,
+        "submissions": submissions,
+        "not_submitted": [request for request in approved_requests if request.user_id not in submitted_user_ids],
     }
 
 

@@ -116,6 +116,13 @@ export const createQuiz = async (slug, payload, token) => {
   return response.data
 }
 
+export const updateQuizSchedule = async (slug, quizId, payload, token) => {
+  const response = await api.put(`/courses/${slug}/quizzes/${quizId}/schedule`, payload, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return response.data
+}
+
 export const fetchQuiz = async (slug, quizId, token) => {
   const response = await api.get(`/courses/${slug}/quizzes/${quizId}`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -208,6 +215,16 @@ export const fetchProfile = async (token) => {
   return response.data
 }
 
+export const updateProfile = async (payload, token) => {
+  const response = await api.put('/auth/me', payload, { headers: { Authorization: `Bearer ${token}` } })
+  return response.data
+}
+
+export const changePassword = async (payload, token) => {
+  const response = await api.post('/auth/change-password', payload, { headers: { Authorization: `Bearer ${token}` } })
+  return response.data
+}
+
 export const fetchMyRequests = async (token) => {
   const response = await api.get('/courses/requests/me', { headers: { Authorization: `Bearer ${token}` } })
   return response.data
@@ -257,4 +274,50 @@ export const fetchCodingContestAnalytics = async (slug, contestId, token) => {
     headers: { Authorization: `Bearer ${token}` },
   })
   return response.data
+}
+
+export const fetchAssignments = async (slug, token) => {
+  const response = await api.get(`/courses/${slug}/assignments`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return response.data
+}
+
+export const createAssignment = async (slug, payload, token) => {
+  const response = await api.post(`/courses/${slug}/assignments`, payload, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return response.data
+}
+
+export const submitAssignment = async (slug, assignmentId, file, note, token) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('note', note || '')
+  const response = await api.post(`/courses/${slug}/assignments/${assignmentId}/submit`, formData, {
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
+  })
+  return response.data
+}
+
+export const fetchAssignmentAnalytics = async (slug, assignmentId, token) => {
+  const response = await api.get(`/courses/${slug}/assignments/${assignmentId}/analytics`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return response.data
+}
+
+export const downloadAssignmentSubmission = async (slug, assignmentId, submissionId, filename, token) => {
+  const response = await api.get(
+    `/courses/${slug}/assignments/${assignmentId}/submissions/${submissionId}/download`,
+    { headers: { Authorization: `Bearer ${token}` }, responseType: 'blob' },
+  )
+  const url = window.URL.createObjectURL(response.data)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename || 'assignment-submission'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
 }
