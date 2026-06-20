@@ -408,6 +408,23 @@ def create_course_assignment(
     return crud.list_assignments(db, course.id, current_user.id)[0] if assignment else None
 
 
+@router.put("/{course_slug}/assignments/{assignment_id}/schedule", response_model=schemas.AssignmentResponse)
+def update_course_assignment_schedule(
+    course_slug: str,
+    assignment_id: int,
+    schedule_in: schemas.AssignmentScheduleUpdate,
+    current_user: schemas.UserResponse = Depends(auth.require_role(["trainer", "admin"])),
+    db: Session = Depends(get_db),
+):
+    course = crud.get_course_by_slug(db, course_slug)
+    assignment = crud.get_assignment(db, assignment_id)
+    if not course or not assignment or assignment.course_id != course.id:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    if not _can_manage_course(current_user, course, db):
+        raise HTTPException(status_code=403, detail="Admin approval is required")
+    return crud.update_assignment_schedule(db, assignment, schedule_in.model_dump())
+
+
 @router.post("/{course_slug}/assignments/{assignment_id}/submit", response_model=schemas.AssignmentSubmissionResponse)
 def submit_course_assignment(
     course_slug: str,
@@ -492,6 +509,23 @@ def create_course_coding_contest(
     if not _can_manage_course(current_user, course, db):
         raise HTTPException(status_code=403, detail="Admin approval is required before creating contests")
     return crud.create_coding_contest(db, course.id, contest_in.model_dump())
+
+
+@router.put("/{course_slug}/coding-contests/{contest_id}/schedule", response_model=schemas.CodingContestResponse)
+def update_course_coding_contest_schedule(
+    course_slug: str,
+    contest_id: int,
+    schedule_in: schemas.CodingContestScheduleUpdate,
+    current_user: schemas.UserResponse = Depends(auth.require_role(["trainer", "admin"])),
+    db: Session = Depends(get_db),
+):
+    course = crud.get_course_by_slug(db, course_slug)
+    contest = crud.get_coding_contest(db, contest_id)
+    if not course or not contest or contest.course_id != course.id:
+        raise HTTPException(status_code=404, detail="Coding contest not found")
+    if not _can_manage_course(current_user, course, db):
+        raise HTTPException(status_code=403, detail="Admin approval is required")
+    return crud.update_coding_contest_schedule(db, contest, schedule_in.model_dump())
 
 
 @router.delete("/{course_slug}/coding-contests/{contest_id}", response_model=schemas.MessageResponse)

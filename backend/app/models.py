@@ -23,6 +23,7 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     role = Column(Enum(UserRole), nullable=False, default=UserRole.student)
     is_active = Column(Boolean, default=True)
+    profile_pic_url = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     requests = relationship("CourseAccessRequest", back_populates="user", cascade="all, delete-orphan")
@@ -329,3 +330,50 @@ class CodingSubmission(Base):
     @property
     def student_username(self):
         return self.user.username if self.user else None
+
+
+class OTPToken(Base):
+    __tablename__ = "otp_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    otp_code = Column(String(6), nullable=False)
+    delivery_method = Column(String(20), nullable=False)  # "email" or "phone"
+    is_verified = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+
+    user = relationship("User")
+
+
+class SupportMessage(Base):
+    __tablename__ = "support_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    trainer_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Null until assigned
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=True)
+    is_resolved = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    answered_at = Column(DateTime, nullable=True)
+
+    course = relationship("Course")
+    student = relationship("User", foreign_keys=[student_id])
+    trainer = relationship("User", foreign_keys=[trainer_id])
+
+
+class LLMChat(Base):
+    __tablename__ = "llm_chats"
+
+    id = Column(Integer, primary_key=True, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    title = Column(String(255), nullable=False, default="New Chat")
+    messages_json = Column(Text, nullable=False, default="[]")  # JSON array of {role, content}
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    course = relationship("Course")
+    user = relationship("User")

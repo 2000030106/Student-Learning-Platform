@@ -722,6 +722,43 @@ def create_assignment(db: Session, course_id: int, assignment_data: dict):
     return assignment
 
 
+def update_assignment_schedule(db: Session, assignment: models.CourseAssignment, schedule_data: dict):
+    assignment.due_at = schedule_data.get("due_at")
+    db.commit()
+    db.refresh(assignment)
+    _clear_event_reminders(db, "assignment", assignment.id, [models.NotificationEventType.assignment_due])
+    approved_requests = (
+        db.query(models.CourseAccessRequest)
+        .filter(
+            models.CourseAccessRequest.course_id == assignment.course_id,
+            models.CourseAccessRequest.status == models.CourseAccessStatus.approved,
+        )
+        .all()
+    )
+    for request in approved_requests:
+        if request.user and request.user.email:
+            email_utils.send_email(
+                request.user.email,
+                f"Updated assignment due date: {assignment.title}",
+                (
+                    f"Hello {request.user.name},\n\n"
+                    f"The due date for the assignment '{assignment.title}' has been updated for {assignment.course.title if assignment.course else 'your course'}.\n\n"
+                    f"Due: {assignment.due_at or 'No due date set'}\n\n"
+                    "Please review the assignment and submit your work before the deadline."
+                ),
+            )
+            if assignment.due_at:
+                _queue_event_reminder(
+                    db,
+                    request.user,
+                    models.NotificationEventType.assignment_due,
+                    "assignment",
+                    assignment.id,
+                    assignment.due_at - timedelta(hours=1),
+                )
+    return assignment
+
+
 def submit_assignment(db: Session, assignment: models.CourseAssignment, user: models.User, upload_file, note: str = ""):
     upload_root = Path(os.getenv("UPLOAD_DIR", "uploads")) / "assignments" / str(assignment.id)
     upload_root.mkdir(parents=True, exist_ok=True)
@@ -825,6 +862,94 @@ def create_coding_contest(db: Session, course_id: int, contest_data: dict):
         db.add(question)
     db.commit()
     db.refresh(contest)
+    approved_requests = (
+        db.query(models.CourseAccessRequest)
+        .filter(
+            models.CourseAccessRequest.course_id == course_id,
+            models.CourseAccessRequest.status == models.CourseAccessStatus.approved,
+        )
+        .all()
+    )
+    for request in approved_requests:
+        if request.user and request.user.email:
+            email_utils.send_email(
+                request.user.email,
+                f"New coding contest: {contest.title}",
+                (
+                    f"Hello {request.user.name},\n\n"
+                    f"A new coding contest has been added for {contest.course.title if contest.course else 'your course'}.\n\n"
+                    f"Contest: {contest.title}\n"
+                    f"Starts: {contest.starts_at or 'Not scheduled'}\n"
+                    f"Ends: {contest.ends_at or 'Not scheduled'}\n\n"
+                    "Open the coding contest tab to review the challenges and submit your solutions."
+                ),
+            )
+            if contest.starts_at:
+                _queue_event_reminder(
+                    db,
+                    request.user,
+                    models.NotificationEventType.contest_start,
+                    "coding_contest",
+                    contest.id,
+                    contest.starts_at - timedelta(hours=1),
+                )
+            if contest.ends_at:
+                _queue_event_reminder(
+                    db,
+                    request.user,
+                    models.NotificationEventType.contest_end,
+                    "coding_contest",
+                    contest.id,
+                    contest.ends_at - timedelta(hours=1),
+                )
+    return contest
+
+def update_coding_contest_schedule(db: Session, contest: models.CodingContest, schedule_data: dict):
+    contest.starts_at = schedule_data.get("starts_at")
+    contest.ends_at = schedule_data.get("ends_at")
+    db.commit()
+    db.refresh(contest)
+    _clear_event_reminders(db, "coding_contest", contest.id, [models.NotificationEventType.contest_start, models.NotificationEventType.contest_end])
+    approved_requests = (
+        db.query(models.CourseAccessRequest)
+        .filter(
+            models.CourseAccessRequest.course_id == contest.course_id,
+            models.CourseAccessRequest.status == models.CourseAccessStatus.approved,
+        )
+        .all()
+    )
+    for request in approved_requests:
+        if request.user and request.user.email:
+            email_utils.send_email(
+                request.user.email,
+                f"Coding contest schedule updated: {contest.title}",
+                (
+                    f"Hello {request.user.name},\n\n"
+                    f"The schedule for the coding contest '{contest.title}' has been updated for {contest.course.title if contest.course else 'your course'}.\n\n"
+                    f"Starts: {contest.starts_at or 'Not scheduled'}\n"
+                    f"Ends: {contest.ends_at or 'Not scheduled'}\n\n"
+                    "Please review the contest details and submit your solutions on time."
+                ),
+            )
+            if contest.starts_at:
+                _queue_event_reminder(
+                    db,
+                    request.user,
+                    models.NotificationEventType.contest_start,
+                    "coding_contest",
+                    contest.id,
+                    contest.starts_at - timedelta(hours=1),
+                )
+            if contest.ends_at:
+                _queue_event_reminder(
+                    db,
+                    request.user,
+                    models.NotificationEventType.contest_end,
+                    "coding_contest",
+                    contest.id,
+                    contest.ends_at - timedelta(hours=1),
+                )
+    return contest
     approved_requests = (
         db.query(models.CourseAccessRequest)
         .filter(
@@ -1006,3 +1131,226 @@ def get_coding_contest_analytics(db: Session, contest: models.CodingContest):
         "average_score": average_score,
         "attempts": attempts,
     }
+
+
+# Profile and Authentication Functions
+def update_profile_picture(db: Session, user_id: int, profile_pic_url: str):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.profile_pic_url = profile_pic_url
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def get_user_profile(db: Session, user_id: int):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+def update_email_phone(db: Session, user_id: int, email: str = None, phone: str = None):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if email and email != user.email:
+        existing = get_user_by_email(db, email)
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already in use")
+        user.email = email
+    
+    if phone is not None:
+        user.phone = phone
+    
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def change_password(db: Session, user_id: int, current_password: str, new_password: str):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if not security.verify_password(current_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    
+    if current_password == new_password:
+        raise HTTPException(status_code=400, detail="New password must be different from current password")
+    
+    user.hashed_password = security.get_password_hash(new_password)
+    db.commit()
+    return {"detail": "Password changed successfully"}
+
+
+# OTP Functions
+def create_otp_token(db: Session, user: models.User, delivery_method: str):
+    import random
+    import string
+    
+    otp_code = ''.join(random.choices(string.digits, k=6))
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+    
+    otp_token = models.OTPToken(
+        user_id=user.id,
+        otp_code=otp_code,
+        delivery_method=delivery_method,
+        expires_at=expires_at,
+    )
+    db.add(otp_token)
+    db.commit()
+    db.refresh(otp_token)
+    
+    if delivery_method == "email" and user.email:
+        email_utils.send_email(
+            user.email,
+            "Your OTP for Student Learning Platform",
+            f"Hello {user.name},\n\nYour OTP for login is: {otp_code}\n\nThis OTP will expire in 10 minutes.\n\nIf you didn't request this, please ignore this email.",
+        )
+    
+    return otp_token
+
+
+def verify_otp_token(db: Session, username: str, otp_code: str):
+    user = get_user_by_username(db, username)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    otp_token = (
+        db.query(models.OTPToken)
+        .filter(
+            models.OTPToken.user_id == user.id,
+            models.OTPToken.otp_code == otp_code,
+            models.OTPToken.expires_at > datetime.utcnow(),
+        )
+        .order_by(models.OTPToken.created_at.desc())
+        .first()
+    )
+    
+    if not otp_token:
+        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+    
+    otp_token.is_verified = True
+    db.commit()
+    return user
+
+
+# Support Message Functions
+def create_support_message(db: Session, user_id: int, course_id: int, question: str):
+    support_msg = models.SupportMessage(
+        course_id=course_id,
+        student_id=user_id,
+        question=question,
+    )
+    db.add(support_msg)
+    db.commit()
+    db.refresh(support_msg)
+    
+    email_utils.send_email(
+        "support@learningplatform.com",
+        f"New support question in course {support_msg.course.title}",
+        f"Student: {support_msg.student.name}\nQuestion: {question}",
+    )
+    
+    return support_msg
+
+
+def get_support_messages_for_course(db: Session, course_id: int):
+    messages = (
+        db.query(models.SupportMessage)
+        .filter(models.SupportMessage.course_id == course_id)
+        .order_by(models.SupportMessage.created_at.desc())
+        .all()
+    )
+    open_count = len([m for m in messages if not m.is_resolved])
+    resolved_count = len([m for m in messages if m.is_resolved])
+    return {
+        "total": len(messages),
+        "open": open_count,
+        "resolved": resolved_count,
+        "messages": messages,
+    }
+
+
+def answer_support_message(db: Session, message_id: int, trainer_id: int, answer: str):
+    msg = db.query(models.SupportMessage).filter(models.SupportMessage.id == message_id).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Support message not found")
+    
+    msg.answer = answer
+    msg.trainer_id = trainer_id
+    msg.is_resolved = True
+    msg.answered_at = datetime.utcnow()
+    db.commit()
+    db.refresh(msg)
+    
+    if msg.student and msg.student.email:
+        email_utils.send_email(
+            msg.student.email,
+            f"Your support question has been answered",
+            f"Hello {msg.student.name},\n\nYour question has been answered:\n\nQuestion: {msg.question}\n\nAnswer: {answer}",
+        )
+    
+    return msg
+
+
+def get_support_messages_for_student(db: Session, student_id: int):
+    messages = (
+        db.query(models.SupportMessage)
+        .filter(models.SupportMessage.student_id == student_id)
+        .order_by(models.SupportMessage.created_at.desc())
+        .all()
+    )
+    return messages
+
+
+# LLM Chat Functions
+def create_llm_chat(db: Session, user_id: int, course_id: int, title: str = "New Chat"):
+    chat = models.LLMChat(
+        course_id=course_id,
+        user_id=user_id,
+        title=title,
+        messages_json="[]",
+    )
+    db.add(chat)
+    db.commit()
+    db.refresh(chat)
+    return chat
+
+
+def get_user_llm_chats(db: Session, user_id: int):
+    chats = (
+        db.query(models.LLMChat)
+        .filter(models.LLMChat.user_id == user_id)
+        .order_by(models.LLMChat.updated_at.desc())
+        .all()
+    )
+    return chats
+
+
+def get_llm_chat(db: Session, chat_id: int):
+    chat = db.query(models.LLMChat).filter(models.LLMChat.id == chat_id).first()
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    return chat
+
+
+def add_llm_message(db: Session, chat_id: int, messages: list):
+    chat = get_llm_chat(db, chat_id)
+    current_messages = json.loads(chat.messages_json or "[]")
+    current_messages.extend(messages)
+    chat.messages_json = json.dumps(current_messages)
+    chat.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(chat)
+    return chat
+
+
+def delete_llm_chat(db: Session, chat_id: int):
+    chat = get_llm_chat(db, chat_id)
+    db.delete(chat)
+    db.commit()
+    return {"detail": "Chat deleted successfully"}

@@ -1,11 +1,27 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { login, register, fetchProfile } from '../api'
+import { login, register, fetchProfile, requestOTP, verifyOTP } from '../api'
 
 const AuthPage = ({ mode, setToken, setUser }) => {
   const [form, setForm] = useState({ name: '', username: '', email: '', phone: '', password: '', role: 'student' })
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [useOTP, setUseOTP] = useState(false)
+  const [otpMethod, setOtpMethod] = useState('email')
+  const [otpCode, setOtpCode] = useState('')
+  const [step, setStep] = useState(1) // 1: initial, 2: OTP sent, 3: verify
+  const [captcha, setCaptcha] = useState('')
+  const [captchaText, setCaptchaText] = useState(generateCaptcha())
   const navigate = useNavigate()
+
+  function generateCaptcha() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+    let result = ''
+    for (let i = 0; i < 6; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    return result
+  }
 
   const handleChange = (event) => {
     setForm({ ...form, [event.target.name]: event.target.value })
@@ -17,9 +33,52 @@ const AuthPage = ({ mode, setToken, setUser }) => {
     setToken(accessToken)
   }
 
+  const validateCaptcha = () => {
+    return captcha.toUpperCase() === captchaText.toUpperCase()
+  }
+
+  const handleRequestOTP = async (event) => {
+    event.preventDefault()
+    setError('')
+    if (!validateCaptcha()) {
+      setError('Incorrect CAPTCHA. Please try again.')
+      setCaptcha('')
+      return
+    }
+    try {
+      await requestOTP(form.username, otpMethod)
+      setSuccess(`OTP sent to your ${otpMethod}`)
+      setStep(2)
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to send OTP')
+    }
+  }
+
+  const handleVerifyOTP = async (event) => {
+    event.preventDefault()
+    setError('')
+    if (!otpCode || otpCode.length !== 6) {
+      setError('Please enter a valid 6-digit OTP')
+      return
+    }
+    try {
+      const data = await verifyOTP(form.username, otpCode)
+      await updateSession(data.access_token)
+      navigate('/')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Invalid OTP')
+    }
+  }
+
   const handleSubmit = async (event) => {
     event.preventDefault()
     setError('')
+    if (!validateCaptcha()) {
+      setError('Incorrect CAPTCHA. Please try again.')
+      setCaptcha('')
+      return
+    }
     try {
       if (mode === 'login') {
         const data = await login(form.username, form.password)
@@ -27,13 +86,58 @@ const AuthPage = ({ mode, setToken, setUser }) => {
         navigate('/')
       } else {
         await register(form.role, form)
-        setToken('')
-        setUser(null)
-        navigate('/login')
+        setSuccess('Account created successfully! Redirecting to login...')
+        setTimeout(() => navigate('/login'), 2000)
       }
     } catch (err) {
       setError(err.response?.data?.detail || 'Unable to submit credentials')
     }
+  }
+
+  if (mode === 'login' && useOTP && step === 2) {
+    return (
+      <section className="auth-panel auth-experience">
+        <div className="auth-visual">
+          <span className="eyebrow">Innolance Learning</span>
+          <h1>Verify Your OTP</h1>
+          <p>We've sent a one-time password (OTP) to your registered {otpMethod}. Please enter it below to continue.</p>
+        </div>
+        <div className="auth-card">
+          <span className="auth-chip">OTP Verification</span>
+          <h2>Enter OTP</h2>
+          <form onSubmit={handleVerifyOTP}>
+            <div className="field-group">
+              <label>6-Digit OTP</label>
+              <input
+                type="text"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value)}
+                placeholder="000000"
+                maxLength="6"
+                required
+              />
+              <small>OTP expires in 10 minutes</small>
+            </div>
+            {error && <div className="alert">{error}</div>}
+            {success && <div className="success-box">{success}</div>}
+            <button className="button primary" type="submit">Verify OTP</button>
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => {
+                setStep(1)
+                setOtpCode('')
+                setError('')
+                setCaptcha('')
+                setCaptchaText(generateCaptcha())
+              }}
+            >
+              Back
+            </button>
+          </form>
+        </div>
+      </section>
+    )
   }
 
   return (
@@ -51,7 +155,37 @@ const AuthPage = ({ mode, setToken, setUser }) => {
       <div className="auth-card">
         <span className="auth-chip">{mode === 'login' ? 'Welcome back' : 'New account'}</span>
         <h2>{mode === 'login' ? 'Sign in' : 'Register'}</h2>
-        <form onSubmit={handleSubmit}>
+        
+        {mode === 'login' && (
+          <div className="login-method-toggle">
+            <button
+              type="button"
+              className={`method-btn ${!useOTP ? 'active' : ''}`}
+              onClick={() => {
+                setUseOTP(false)
+                setStep(1)
+                setError('')
+              }}
+            >
+              Password Login
+            </button>
+            <button
+              type="button"
+              className={`method-btn ${useOTP ? 'active' : ''}`}
+              onClick={() => {
+                setUseOTP(true)
+                setStep(1)
+                setError('')
+                setCaptcha('')
+                setCaptchaText(generateCaptcha())
+              }}
+            >
+              OTP Login
+            </button>
+          </div>
+        )}
+
+        <form onSubmit={useOTP ? handleRequestOTP : handleSubmit}>
           {mode === 'register' && (
             <div className="field-group">
               <label>Name</label>
@@ -81,13 +215,47 @@ const AuthPage = ({ mode, setToken, setUser }) => {
               </div>
             </>
           )}
-          <div className="field-group">
-            <label>Password</label>
-            <input name="password" value={form.password} onChange={handleChange} type="password" placeholder="Enter password" required />
+          
+          {useOTP && mode === 'login' && (
+            <div className="field-group">
+              <label>Receive OTP via:</label>
+              <select value={otpMethod} onChange={(e) => setOtpMethod(e.target.value)}>
+                <option value="email">Email</option>
+              </select>
+              <small>We'll send a one-time password to verify your identity</small>
+            </div>
+          )}
+
+          {!useOTP && (
+            <div className="field-group">
+              <label>Password</label>
+              <input name="password" value={form.password} onChange={handleChange} type="password" placeholder="Enter password" required />
+            </div>
+          )}
+
+          {/* CAPTCHA */}
+          <div className="captcha-field">
+            <label>CAPTCHA Verification</label>
+            <div className="captcha-container">
+              <div className="captcha-text">{captchaText}</div>
+              <button type="button" onClick={() => setCaptchaText(generateCaptcha())} className="btn-refresh">
+                🔄 Refresh
+              </button>
+            </div>
+            <input
+              type="text"
+              value={captcha}
+              onChange={(e) => setCaptcha(e.target.value)}
+              placeholder="Enter the characters shown above"
+              required
+            />
+            <small>Enter the 6-character code from the image above</small>
           </div>
+
           {error && <div className="alert">{error}</div>}
+          {success && <div className="success-box">{success}</div>}
           <button className="button primary" type="submit">
-            {mode === 'login' ? 'Sign in' : 'Register'}
+            {useOTP ? 'Send OTP' : mode === 'login' ? 'Sign in' : 'Register'}
           </button>
         </form>
       </div>

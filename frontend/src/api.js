@@ -220,11 +220,6 @@ export const updateProfile = async (payload, token) => {
   return response.data
 }
 
-export const changePassword = async (payload, token) => {
-  const response = await api.post('/auth/change-password', payload, { headers: { Authorization: `Bearer ${token}` } })
-  return response.data
-}
-
 export const fetchMyRequests = async (token) => {
   const response = await api.get('/courses/requests/me', { headers: { Authorization: `Bearer ${token}` } })
   return response.data
@@ -248,6 +243,13 @@ export const fetchCodingContests = async (slug, token) => {
 
 export const createCodingContest = async (slug, payload, token) => {
   const response = await api.post(`/courses/${slug}/coding-contests`, payload, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return response.data
+}
+
+export const updateCodingContestSchedule = async (slug, contestId, payload, token) => {
+  const response = await api.put(`/courses/${slug}/coding-contests/${contestId}/schedule`, payload, {
     headers: { Authorization: `Bearer ${token}` },
   })
   return response.data
@@ -300,6 +302,13 @@ export const submitAssignment = async (slug, assignmentId, file, note, token) =>
   return response.data
 }
 
+export const updateAssignmentSchedule = async (slug, assignmentId, payload, token) => {
+  const response = await api.put(`/courses/${slug}/assignments/${assignmentId}/schedule`, payload, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return response.data
+}
+
 export const fetchAssignmentAnalytics = async (slug, assignmentId, token) => {
   const response = await api.get(`/courses/${slug}/assignments/${assignmentId}/analytics`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -320,4 +329,129 @@ export const downloadAssignmentSubmission = async (slug, assignmentId, submissio
   link.click()
   link.remove()
   window.URL.revokeObjectURL(url)
+}
+
+// Profile and Authentication Functions
+export const getProfile = async (token) => {
+  const response = await api.get('/auth/profile', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return response.data
+}
+
+export const uploadProfilePicture = async (profilePicUrl, token) => {
+  const response = await api.post(
+    '/auth/profile/picture',
+    { profile_pic_url: profilePicUrl },
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  return response.data
+}
+
+export const updateEmailPhone = async (email, phone, token) => {
+  const response = await api.put(
+    '/auth/profile/email-phone',
+    { email, phone },
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  return response.data
+}
+
+export const changePassword = async (currentPassword, newPassword, confirmPassword, token) => {
+  const response = await api.post(
+    '/auth/profile/change-password',
+    { current_password: currentPassword, new_password: newPassword, confirm_password: confirmPassword },
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  return response.data
+}
+
+// OTP Authentication Functions
+export const requestOTP = async (username, deliveryMethod) => {
+  const response = await api.post('/auth/otp-request', {
+    username,
+    delivery_method: deliveryMethod,
+  })
+  return response.data
+}
+
+export const verifyOTP = async (username, otpCode) => {
+  const response = await api.post('/auth/otp-verify', {
+    username,
+    otp_code: otpCode,
+  })
+  return response.data
+}
+
+// Support Chat Functions
+export const createSupportMessage = async (courseId, question, token) => {
+  const response = await api.post(
+    '/support/messages',
+    { course_id: courseId, question },
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  return response.data
+}
+
+export const getCourseSupportMessages = async (courseId, token) => {
+  const response = await api.get(`/support/messages/course/${courseId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return response.data
+}
+
+export const getMySupportMessages = async (token) => {
+  const response = await api.get('/support/messages/my', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return response.data
+}
+
+export const answerSupportMessage = async (messageId, answer, token) => {
+  const response = await api.post(
+    `/support/messages/${messageId}/answer`,
+    { answer },
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  return response.data
+}
+
+// LLM Chat Functions
+export const createLLMChat = async (courseId, title, token) => {
+  const response = await api.post(
+    '/llm/chats',
+    { course_id: courseId, title },
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  return response.data
+}
+
+export const getLLMChats = async (token) => {
+  const response = await api.get('/llm/chats', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return response.data
+}
+
+export const getLLMChat = async (chatId, token) => {
+  const response = await api.get(`/llm/chats/${chatId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return response.data
+}
+
+export const sendLLMMessage = async (chatId, content, token) => {
+  const response = await api.post(
+    `/llm/chats/${chatId}/message`,
+    { content },
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  return response.data
+}
+
+export const deleteLLMChat = async (chatId, token) => {
+  const response = await api.delete(`/llm/chats/${chatId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return response.data
 }

@@ -260,6 +260,10 @@ class AssignmentCreate(BaseModel):
     due_at: Optional[datetime] = None
 
 
+class AssignmentScheduleUpdate(BaseModel):
+    due_at: Optional[datetime] = None
+
+
 class AssignmentResponse(ORMModel):
     id: int
     course_id: int
@@ -324,6 +328,11 @@ class CodingContestCreate(BaseModel):
     questions: list[CodingQuestionCreate]
 
 
+class CodingContestScheduleUpdate(BaseModel):
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+
+
 class CodingContestResponse(ORMModel):
     id: int
     course_id: int
@@ -363,3 +372,106 @@ class CodingContestAnalytics(BaseModel):
     failed: int
     average_score: int
     attempts: list[CodingSubmissionResponse]
+
+
+class UserDetailResponse(UserResponse):
+    profile_pic_url: Optional[str] = None
+    phone: Optional[str] = None
+
+
+class ProfilePictureUpload(BaseModel):
+    profile_pic_url: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+    confirm_password: str
+
+
+class OTPRequest(BaseModel):
+    username: str
+    delivery_method: str  # "email" or "phone"
+
+
+class OTPVerify(BaseModel):
+    username: str
+    otp_code: str
+
+
+class OTPTokenResponse(ORMModel):
+    id: int
+    user_id: int
+    delivery_method: str
+    is_verified: bool
+    created_at: datetime
+    expires_at: datetime
+
+
+class SupportMessageCreate(BaseModel):
+    course_id: int
+    question: str
+
+
+class SupportMessageResponse(ORMModel):
+    id: int
+    course_id: int
+    student_id: int
+    trainer_id: Optional[int] = None
+    question: str
+    answer: Optional[str] = None
+    is_resolved: bool
+    created_at: datetime
+    answered_at: Optional[datetime] = None
+
+
+class SupportMessageAnswer(BaseModel):
+    answer: str
+
+
+class SupportMessageList(BaseModel):
+    total: int
+    open: int
+    resolved: int
+    messages: list[SupportMessageResponse]
+
+
+class LLMMessage(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
+
+class LLMChatCreate(BaseModel):
+    course_id: int
+    title: str = "New Chat"
+
+
+class LLMChatResponse(ORMModel):
+    id: int
+    course_id: int
+    user_id: int
+    title: str
+    messages_json: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class LLMChatMessage(BaseModel):
+    content: str
+
+
+class LLMChatResponse2(ORMModel):
+    id: int
+    course_id: int
+    user_id: int
+    title: str
+    messages: list[LLMMessage]
+    created_at: datetime
+    updated_at: datetime
+
+
+class LLMAPIRequest(BaseModel):
+    model: str = "mistral"
+    messages: list[LLMMessage]
+    temperature: float = 0.7
+    max_tokens: int = 500

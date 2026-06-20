@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from .database import engine, Base, SessionLocal
 from . import crud, email_utils, models
-from .routers import auth, code, courses
+from .routers import auth, code, courses, support, llm
 from .schemas import UserCreate
 
 app = FastAPI(title="Student Learning Platform API")
@@ -29,6 +29,8 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(courses.router)
 app.include_router(code.router)
+app.include_router(support.router)
+app.include_router(llm.router)
 
 
 def _run_notification_worker():

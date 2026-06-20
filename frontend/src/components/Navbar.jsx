@@ -20,6 +20,8 @@ const Navbar = ({ user, onSignOut }) => {
             <Link to="/">{user.role === 'admin' ? 'Manage Courses' : user.role === 'trainer' ? 'Course Studio' : 'Courses'}</Link>
             <Link to="/quizzes">Quizzes</Link>
             <Link to="/practice">Practice</Link>
+            <Link to="/support">Support</Link>
+            <Link to="/llm-chat">AI Chat</Link>
             {user.role === 'admin' && <Link to="/course-editor">Add / Update</Link>}
             {user.role === 'admin' && <Link to="/requests">Student Requests</Link>}
             {user.role === 'admin' && <Link to="/trainer-requests">Trainer Requests</Link>}

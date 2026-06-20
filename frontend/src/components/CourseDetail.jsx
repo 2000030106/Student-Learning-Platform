@@ -24,6 +24,8 @@ import {
   submitCodingContest,
   submitAssignment,
   submitQuizAttempt,
+  updateAssignmentSchedule,
+  updateCodingContestSchedule,
   updateQuizSchedule,
   updateLearningItem,
 } from '../api'
@@ -83,6 +85,11 @@ const CourseDetail = ({ token, user }) => {
   const [codingResult, setCodingResult] = useState(null)
   const [selectedContestId, setSelectedContestId] = useState(null)
   const [selectedQuestionId, setSelectedQuestionId] = useState(null)
+  const [editingContest, setEditingContest] = useState(null)
+  const [contestTimeDraft, setContestTimeDraft] = useState({ starts_at: '', ends_at: '' })
+  const [editingAssignment, setEditingAssignment] = useState(null)
+  const [assignmentTimeDraft, setAssignmentTimeDraft] = useState({ due_at: '' })
+  const [showAssignmentScheduleEditor, setShowAssignmentScheduleEditor] = useState(false)
   const [codingDraft, setCodingDraft] = useState({
     title: '',
     description: '',
@@ -456,6 +463,64 @@ const CourseDetail = ({ token, user }) => {
       ends_at: quiz.ends_at ? quiz.ends_at.slice(0, 16) : '',
     })
     setShowQuizTimeEditor(true)
+  }
+
+  const beginContestTimeEdit = (contest) => {
+    setEditingContest(contest)
+    setContestTimeDraft({
+      starts_at: contest.starts_at ? contest.starts_at.slice(0, 16) : '',
+      ends_at: contest.ends_at ? contest.ends_at.slice(0, 16) : '',
+    })
+  }
+
+  const saveContestTime = async (event) => {
+    event.preventDefault()
+    setError('')
+    setMessage('')
+    try {
+      await updateCodingContestSchedule(
+        slug,
+        editingContest.id,
+        {
+          starts_at: contestTimeDraft.starts_at ? new Date(contestTimeDraft.starts_at).toISOString() : null,
+          ends_at: contestTimeDraft.ends_at ? new Date(contestTimeDraft.ends_at).toISOString() : null,
+        },
+        token,
+      )
+      setCodingContests(await fetchCodingContests(slug, token))
+      setEditingContest(null)
+      setMessage('Contest timing updated and students were notified.')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Unable to update contest timing.')
+    }
+  }
+
+  const beginAssignmentTimeEdit = (assignment) => {
+    setEditingAssignment(assignment)
+    setAssignmentTimeDraft({ due_at: assignment.due_at ? assignment.due_at.slice(0, 16) : '' })
+    setShowAssignmentScheduleEditor(true)
+  }
+
+  const saveAssignmentTime = async (event) => {
+    event.preventDefault()
+    setError('')
+    setMessage('')
+    try {
+      await updateAssignmentSchedule(
+        slug,
+        editingAssignment.id,
+        {
+          due_at: assignmentTimeDraft.due_at ? new Date(assignmentTimeDraft.due_at).toISOString() : null,
+        },
+        token,
+      )
+      setAssignments(await fetchAssignments(slug, token))
+      setEditingAssignment(null)
+      setShowAssignmentScheduleEditor(false)
+      setMessage('Assignment due date updated and students were notified.')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Unable to update assignment due date.')
+    }
   }
 
   const saveQuizTime = async (event) => {
@@ -848,6 +913,7 @@ const CourseDetail = ({ token, user }) => {
                     ))}
                   </div>
                   <div className="assessment-card-actions">
+                    <button className="button secondary small" type="button" onClick={() => beginContestTimeEdit(contest)}>Edit time</button>
                     <button className="button secondary small" type="button" onClick={() => loadCodingAnalytics(contest)}>View results</button>
                     <button className="button danger small" type="button" onClick={() => removeCodingContest(contest)}>Delete</button>
                   </div>
@@ -901,6 +967,26 @@ const CourseDetail = ({ token, user }) => {
                     </article>
                   ))}
                 </div>
+              </section>
+            </div>
+          )}
+
+          {editingContest && (
+            <div className="modal-backdrop">
+              <section className="trainer-modal schedule-modal">
+                <div className="modal-heading">
+                  <div>
+                    <span className="eyebrow">Coding Contest Timing</span>
+                    <h2>{editingContest.title}</h2>
+                    <p>Adjust start and end times for this contest.</p>
+                  </div>
+                  <button className="button secondary small" type="button" onClick={() => setEditingContest(null)}>Close</button>
+                </div>
+                <form className="quiz-builder-form polished-builder-form" onSubmit={saveContestTime}>
+                  <input value={contestTimeDraft.starts_at} onChange={(event) => setContestTimeDraft((prev) => ({ ...prev, starts_at: event.target.value }))} type="datetime-local" />
+                  <input value={contestTimeDraft.ends_at} onChange={(event) => setContestTimeDraft((prev) => ({ ...prev, ends_at: event.target.value }))} type="datetime-local" />
+                  <button className="button primary" type="submit">Save contest timing</button>
+                </form>
               </section>
             </div>
           )}
@@ -1027,6 +1113,9 @@ const CourseDetail = ({ token, user }) => {
                     <h2>{assignment.title}</h2>
                     <p>{assignment.description}</p>
                   </div>
+                  <button className="button secondary small" type="button" onClick={() => beginAssignmentTimeEdit(assignment)}>
+                    Edit due date
+                  </button>
                   <button className="button secondary small" type="button" onClick={() => loadAssignmentAnalytics(assignment)}>
                     View uploads
                   </button>
@@ -1052,6 +1141,25 @@ const CourseDetail = ({ token, user }) => {
                   <input name="due_at" value={assignmentDraft.due_at} onChange={handleAssignmentDraftChange} type="datetime-local" />
                   <textarea className="wide" name="questions" value={assignmentDraft.questions} onChange={handleAssignmentDraftChange} placeholder="Assignment questions or instructions" required />
                   <button className="button primary" type="submit">Publish assignment</button>
+                </form>
+              </section>
+            </div>
+          )}
+
+          {showAssignmentScheduleEditor && editingAssignment && (
+            <div className="modal-backdrop">
+              <section className="trainer-modal schedule-modal">
+                <div className="modal-heading">
+                  <div>
+                    <span className="eyebrow">Assignment Due Date</span>
+                    <h2>{editingAssignment.title}</h2>
+                    <p>Update the assignment due date and notify students about the change.</p>
+                  </div>
+                  <button className="button secondary small" type="button" onClick={() => setShowAssignmentScheduleEditor(false)}>Close</button>
+                </div>
+                <form className="quiz-builder-form polished-builder-form" onSubmit={saveAssignmentTime}>
+                  <input value={assignmentTimeDraft.due_at} onChange={(event) => setAssignmentTimeDraft((prev) => ({ ...prev, due_at: event.target.value }))} type="datetime-local" />
+                  <button className="button primary" type="submit">Save due date</button>
                 </form>
               </section>
             </div>

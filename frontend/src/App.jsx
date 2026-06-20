@@ -10,6 +10,8 @@ import TrainerRequestsPage from './components/TrainerRequestsPage'
 import StudentQuizzesPage from './components/StudentQuizzesPage'
 import CodingPractice from './components/CodingPractice'
 import ProfilePage from './components/ProfilePage'
+import SupportChatPage from './components/SupportChatPage'
+import LLMChatPage from './components/LLMChatPage'
 import Navbar from './components/Navbar'
 
 const App = () => {
@@ -48,6 +50,8 @@ const App = () => {
           />
           <Route path="/practice" element={user ? <CodingPractice token={token} user={user} /> : <Navigate to="/login" />} />
           <Route path="/profile" element={user ? <ProfilePage token={token} user={user} setUser={setUser} /> : <Navigate to="/login" />} />
+          <Route path="/support" element={user ? <SupportChatPage token={token} user={user} /> : <Navigate to="/login" />} />
+          <Route path="/llm-chat" element={user ? <LLMChatPage token={token} user={user} /> : <Navigate to="/login" />} />
           <Route path="/dashboard" element={user ? <Dashboard token={token} user={user} /> : <Navigate to="/login" />} />
           <Route
             path="/requests"

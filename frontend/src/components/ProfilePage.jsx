@@ -1,19 +1,66 @@
-import { useState } from 'react'
-import { changePassword, updateProfile } from '../api'
+import { useState, useEffect } from 'react'
+import { getProfile, uploadProfilePicture, updateEmailPhone, changePassword } from '../api'
 
 const ProfilePage = ({ token, user, setUser }) => {
+  const [profile, setProfile] = useState(user)
+  const [loading, setLoading] = useState(false)
   const [profileForm, setProfileForm] = useState({ email: user?.email || '', phone: user?.phone || '' })
   const [passwordForm, setPasswordForm] = useState({ current_password: '', new_password: '', confirm_password: '' })
   const [editing, setEditing] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
+  useEffect(() => {
+    // Load full profile on mount
+    if (token) {
+      loadProfile()
+    }
+  }, [token])
+
+  const loadProfile = async () => {
+    try {
+      const data = await getProfile(token)
+      setProfile(data)
+      setProfileForm({ email: data.email || '', phone: data.phone || '' })
+    } catch (err) {
+      console.error('Failed to load profile:', err)
+    }
+  }
+
+  const handleProfilePicChange = async (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+
+    setLoading(true)
+    try {
+      const reader = new FileReader()
+      reader.onloadend = async () => {
+        try {
+          const updated = await uploadProfilePicture(reader.result, token)
+          setProfile(updated)
+          setUser(updated)
+          setMessage('Profile picture updated successfully!')
+          setTimeout(() => setMessage(''), 3000)
+        } catch (err) {
+          setError('Failed to upload profile picture')
+        } finally {
+          setLoading(false)
+        }
+      }
+      reader.readAsDataURL(file)
+    } catch (err) {
+      setError('Failed to process image')
+      setLoading(false)
+    }
+  }
+
   const saveProfile = async (event) => {
     event.preventDefault()
     setError('')
     setMessage('')
     try {
-      const updated = await updateProfile(profileForm, token)
+      const updated = await updateEmailPhone(profileForm.email, profileForm.phone, token)
+      setProfile(updated)
       setUser(updated)
       setEditing('')
       setMessage('Profile updated successfully.')
@@ -31,13 +78,7 @@ const ProfilePage = ({ token, user, setUser }) => {
       return
     }
     try {
-      await changePassword(
-        {
-          current_password: passwordForm.current_password,
-          new_password: passwordForm.new_password,
-        },
-        token,
-      )
+      await changePassword(passwordForm.current_password, passwordForm.new_password, passwordForm.confirm_password, token)
       setPasswordForm({ current_password: '', new_password: '', confirm_password: '' })
       setMessage('Password changed successfully.')
     } catch (err) {
@@ -48,11 +89,35 @@ const ProfilePage = ({ token, user, setUser }) => {
   return (
     <section className="profile-page">
       <div className="profile-hero">
-        <div className="profile-avatar">{(user?.name || user?.username || 'U').slice(0, 1).toUpperCase()}</div>
+        {/* Profile Picture Section */}
+        <div className="profile-picture-section">
+          {profile?.profile_pic_url ? (
+            <img src={profile.profile_pic_url} alt="Profile" className="profile-avatar-image" />
+          ) : (
+            <div className="profile-avatar">{(user?.name || user?.username || 'U').slice(0, 1).toUpperCase()}</div>
+          )}
+          <div className="profile-pic-upload">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleProfilePicChange}
+              disabled={loading}
+              id="profile-pic-input"
+              style={{ display: 'none' }}
+            />
+            <label htmlFor="profile-pic-input" className="button secondary small">
+              {loading ? 'Uploading...' : 'Change Picture'}
+            </label>
+          </div>
+        </div>
+
         <div>
           <span className="eyebrow">{user?.role} profile</span>
           <h1>{user?.name}</h1>
           <p>{user?.username}</p>
+          <p style={{ fontSize: '0.9rem', color: '#666', marginTop: '5px' }}>
+            Member since {new Date(user?.created_at).toLocaleDateString()}
+          </p>
         </div>
       </div>
 
@@ -92,7 +157,9 @@ const ProfilePage = ({ token, user, setUser }) => {
             </button>
           </div>
 
-          <button className="button primary" type="submit">Save profile</button>
+          {(editing === 'email' || editing === 'phone') && (
+            <button className="button primary" type="submit">Save changes</button>
+          )}
         </form>
 
         <form className="profile-panel" onSubmit={savePassword}>
