@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { login, register, fetchProfile, requestOTP, verifyOTP } from '../api'
 
 const AuthPage = ({ mode, setToken, setUser }) => {
@@ -98,13 +98,25 @@ const AuthPage = ({ mode, setToken, setUser }) => {
     return (
       <section className="auth-panel auth-experience">
         <div className="auth-visual">
-          <span className="eyebrow">Innolance Learning</span>
-          <h1>Verify Your OTP</h1>
-          <p>We've sent a one-time password (OTP) to your registered {otpMethod}. Please enter it below to continue.</p>
+          <div className="auth-brand-lockup">
+            <span className="auth-logo-mark">IL</span>
+            <span>Innolance Learning</span>
+          </div>
+          <span className="auth-hero-pill">Authorized Workspace Access</span>
+          <h1>Verify your secure sign in.</h1>
+          <p>We've sent a one-time password to your registered {otpMethod}. Enter it to continue into your learning workspace.</p>
+          <div className="auth-feature-list">
+            <span>Secure student access</span>
+            <span>Role based dashboards</span>
+            <span>Course, quiz and coding results</span>
+          </div>
         </div>
-        <div className="auth-card">
-          <span className="auth-chip">OTP Verification</span>
-          <h2>Enter OTP</h2>
+        <div className="auth-card auth-card-modern">
+          <div className="auth-card-heading">
+            <span className="auth-chip">OTP Verification</span>
+            <h2>Enter OTP</h2>
+            <p>Complete verification to open your dashboard.</p>
+          </div>
           <form onSubmit={handleVerifyOTP}>
             <div className="field-group">
               <label>6-Digit OTP</label>
@@ -143,18 +155,33 @@ const AuthPage = ({ mode, setToken, setUser }) => {
   return (
     <section className="auth-panel auth-experience">
       <div className="auth-visual">
-        <span className="eyebrow">Innolance Learning</span>
-        <h1>{mode === 'login' ? 'Continue your learning workspace.' : 'Create your student or trainer account.'}</h1>
-        <p>{mode === 'login' ? 'Access courses, quizzes, assignments, and coding practice from one focused dashboard.' : 'Students can request course access. Trainers can build quizzes, assignments, and learning material after approval.'}</p>
+        <div className="auth-brand-lockup">
+          <span className="auth-logo-mark">IL</span>
+          <span>Innolance Learning</span>
+        </div>
+        <span className="auth-hero-pill">Authorized Workspace Access</span>
+        <h1>{mode === 'login' ? 'Sign in to manage your learning path.' : 'Register for your learning workspace.'}</h1>
+        <p>{mode === 'login' ? 'Access courses, quizzes, assignments, coding contests, and results from one unified dashboard.' : 'Submit your account request and start your course journey after approval.'}</p>
+        <div className="auth-feature-list">
+          <span>Real-time quiz results</span>
+          <span>Assignments and coding contests</span>
+          <span>Student, trainer and admin dashboards</span>
+        </div>
         <div className="auth-metrics">
-          <article><strong>Quiz</strong><span>Timed tests</span></article>
-          <article><strong>Tasks</strong><span>File uploads</span></article>
-          <article><strong>Code</strong><span>Practice lab</span></article>
+          <article><strong>120+</strong><span>Course modules</span></article>
+          <article><strong>3 Roles</strong><span>Student, trainer, admin</span></article>
         </div>
       </div>
-      <div className="auth-card">
-        <span className="auth-chip">{mode === 'login' ? 'Welcome back' : 'New account'}</span>
-        <h2>{mode === 'login' ? 'Sign in' : 'Register'}</h2>
+      <div className="auth-card auth-card-modern">
+        <div className="auth-card-heading">
+          <span className="auth-chip">{mode === 'login' ? 'Welcome back' : 'New account'}</span>
+          <h2>{mode === 'login' ? 'Welcome back' : 'LMS Registration'}</h2>
+          <p>{mode === 'login' ? 'Enter your credentials below to log in.' : 'Submit registration details for course access.'}</p>
+        </div>
+        <div className="auth-route-tabs" role="tablist" aria-label="Authentication mode">
+          <Link className={mode === 'login' ? 'active' : ''} to="/login">Sign in</Link>
+          <Link className={mode === 'register' ? 'active' : ''} to="/register">Register</Link>
+        </div>
         
         {mode === 'login' && (
           <div className="login-method-toggle">
@@ -258,6 +285,9 @@ const AuthPage = ({ mode, setToken, setUser }) => {
             {useOTP ? 'Send OTP' : mode === 'login' ? 'Sign in' : 'Register'}
           </button>
         </form>
+        <div className="auth-support-note">
+          Access is limited to authorized Innolance Learning users. Contact your administrator if you need support.
+        </div>
       </div>
     </section>
   )
