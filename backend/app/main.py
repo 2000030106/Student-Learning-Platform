@@ -1,4 +1,7 @@
 import os
+import threading
+import time
+from datetime import datetime
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,8 +9,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
-from .database import engine, Base
-from . import crud, models
+from .database import engine, Base, SessionLocal
+from . import crud, email_utils, models
 from .routers import auth, code, courses
 from .schemas import UserCreate
 
@@ -26,6 +29,50 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(courses.router)
 app.include_router(code.router)
+
+
+def _run_notification_worker():
+    while True:
+        db = SessionLocal()
+        try:
+            now = datetime.utcnow()
+            pending = (
+                db.query(models.EmailNotification)
+                .filter(models.EmailNotification.sent_at.is_(None), models.EmailNotification.target_at <= now)
+                .all()
+            )
+            for notification in pending:
+                user = notification.user
+                body = None
+                subject = None
+                if notification.event_type == models.NotificationEventType.quiz_start:
+                    subject = "Quiz starts in 1 hour"
+                    body = f"Hello {user.name},\n\nYour quiz will start in one hour. Please prepare to attempt it on the Student Learning Platform."
+                elif notification.event_type == models.NotificationEventType.quiz_end:
+                    subject = "Quiz ends in 1 hour"
+                    body = f"Hello {user.name},\n\nYour quiz will close in one hour. Submit your answers before the deadline."
+                elif notification.event_type == models.NotificationEventType.assignment_due:
+                    subject = "Assignment due in 1 hour"
+                    body = f"Hello {user.name},\n\nYour assignment is due in one hour. Please upload your completed work before the deadline."
+                elif notification.event_type == models.NotificationEventType.contest_start:
+                    subject = "Coding contest starts in 1 hour"
+                    body = f"Hello {user.name},\n\nYour coding contest will begin in one hour. Get ready to solve the problems."
+                elif notification.event_type == models.NotificationEventType.contest_end:
+                    subject = "Coding contest ends in 1 hour"
+                    body = f"Hello {user.name},\n\nYour coding contest will end in one hour. Submit your solution before the finish time."
+                else:
+                    subject = f"Upcoming event reminder"
+                    body = f"Hello {user.name},\n\nAn upcoming event is scheduled soon. Please check the Student Learning Platform."
+                if subject and body:
+                    _send = email_utils.send_email(user.email, subject, body)
+                    if _send:
+                        notification.sent_at = datetime.utcnow()
+                        db.commit()
+        except Exception:
+            db.rollback()
+        finally:
+            db.close()
+        time.sleep(60)
 
 
 @app.on_event("startup")
@@ -79,6 +126,8 @@ def on_startup():
                 crud.create_course(db, item)
     finally:
         db.close()
+    worker = threading.Thread(target=_run_notification_worker, daemon=True)
+    worker.start()
 
 
 @app.get("/api/health")

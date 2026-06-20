@@ -4,7 +4,7 @@ import subprocess
 import sys
 import tempfile
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
@@ -149,6 +149,69 @@ def list_users(db: Session):
     return db.query(models.User).order_by(models.User.created_at.desc()).all()
 
 
+def _send_email_if_available(email: str, subject: str, body: str):
+    if email:
+        email_utils.send_email(email, subject, body)
+
+
+def _queue_event_reminder(db: Session, user: models.User, event_type: models.NotificationEventType, entity_type: str, entity_id: int, target_at: datetime):
+    if not user or not user.email:
+        return None
+    if target_at <= datetime.utcnow():
+        return None
+    notification = models.EmailNotification(
+        user_id=user.id,
+        event_type=event_type,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        target_at=target_at,
+    )
+    db.add(notification)
+    db.commit()
+    db.refresh(notification)
+    return notification
+
+
+def _clear_event_reminders(db: Session, entity_type: str, entity_id: int, event_types: list[models.NotificationEventType] | None = None):
+    query = db.query(models.EmailNotification).filter(models.EmailNotification.entity_type == entity_type, models.EmailNotification.entity_id == entity_id, models.EmailNotification.sent_at.is_(None))
+    if event_types is not None:
+        query = query.filter(models.EmailNotification.event_type.in_(event_types))
+    query.delete(synchronize_session=False)
+    db.commit()
+
+
+def _handle_course_request_notification(db: Session, request: models.CourseAccessRequest):
+    admins = db.query(models.User).filter(models.User.role == models.UserRole.admin).all()
+    for admin in admins:
+        _send_email_if_available(
+            admin.email,
+            f"New course access request for {request.course.title if request.course else request.course_id}",
+            (
+                f"Hello {admin.name},\n\n"
+                f"Student {request.user.name if request.user else request.user_id} ({request.user.username if request.user else ''}) "
+                f"has requested access to {request.course.title if request.course else 'the course'}.\n\n"
+                "Open the admin dashboard to approve or reject this request."
+            ),
+        )
+
+
+def _handle_request_status_notification(db: Session, request: models.CourseAccessRequest):
+    student = request.user
+    if not student or not student.email:
+        return
+    status_text = "approved" if request.status == models.CourseAccessStatus.approved else "rejected"
+    _send_email_if_available(
+        student.email,
+        f"Your course access request has been {status_text}",
+        (
+            f"Hello {student.name},\n\n"
+            f"Your request for access to {request.course.title if request.course else 'the course'} "
+            f"has been {status_text}.\n\n"
+            "Please sign in to the learning platform for details."
+        ),
+    )
+
+
 def create_access_request(db: Session, user_id: int, course_id: int):
     existing = get_access_request(db, user_id, course_id)
     if existing:
@@ -157,6 +220,7 @@ def create_access_request(db: Session, user_id: int, course_id: int):
     db.add(request)
     db.commit()
     db.refresh(request)
+    _handle_course_request_notification(db, request)
     return request
 
 
@@ -167,6 +231,7 @@ def update_request_status(db: Session, request_id: int, approve: bool):
     request.status = models.CourseAccessStatus.approved if approve else models.CourseAccessStatus.rejected
     db.commit()
     db.refresh(request)
+    _handle_request_status_notification(db, request)
     return request
 
 
@@ -394,6 +459,24 @@ def create_quiz(db: Session, course_id: int, quiz_data: dict):
                     "Please log in to the Student Learning Platform to attempt it."
                 ),
             )
+            if quiz.starts_at:
+                _queue_event_reminder(
+                    db,
+                    request.user,
+                    models.NotificationEventType.quiz_start,
+                    "quiz",
+                    quiz.id,
+                    quiz.starts_at - timedelta(hours=1),
+                )
+            if quiz.ends_at:
+                _queue_event_reminder(
+                    db,
+                    request.user,
+                    models.NotificationEventType.quiz_end,
+                    "quiz",
+                    quiz.id,
+                    quiz.ends_at - timedelta(hours=1),
+                )
     return quiz
 
 
@@ -403,6 +486,7 @@ def update_quiz_schedule(db: Session, quiz: models.CourseQuiz, schedule_data: di
     quiz.ends_at = schedule_data.get("ends_at")
     db.commit()
     db.refresh(quiz)
+    _clear_event_reminders(db, "quiz", quiz.id, [models.NotificationEventType.quiz_start, models.NotificationEventType.quiz_end])
     approved_requests = (
         db.query(models.CourseAccessRequest)
         .filter(
@@ -426,6 +510,24 @@ def update_quiz_schedule(db: Session, quiz: models.CourseQuiz, schedule_data: di
                     "Please check the Student Learning Platform before attempting it."
                 ),
             )
+            if quiz.starts_at:
+                _queue_event_reminder(
+                    db,
+                    request.user,
+                    models.NotificationEventType.quiz_start,
+                    "quiz",
+                    quiz.id,
+                    quiz.starts_at - timedelta(hours=1),
+                )
+            if quiz.ends_at:
+                _queue_event_reminder(
+                    db,
+                    request.user,
+                    models.NotificationEventType.quiz_end,
+                    "quiz",
+                    quiz.id,
+                    quiz.ends_at - timedelta(hours=1),
+                )
     return quiz
 
 
@@ -608,6 +710,15 @@ def create_assignment(db: Session, course_id: int, assignment_data: dict):
                     "Open the course assignment tab to view questions and upload your completed file."
                 ),
             )
+            if assignment.due_at:
+                _queue_event_reminder(
+                    db,
+                    request.user,
+                    models.NotificationEventType.assignment_due,
+                    "assignment",
+                    assignment.id,
+                    assignment.due_at - timedelta(hours=1),
+                )
     return assignment
 
 
@@ -714,6 +825,46 @@ def create_coding_contest(db: Session, course_id: int, contest_data: dict):
         db.add(question)
     db.commit()
     db.refresh(contest)
+    approved_requests = (
+        db.query(models.CourseAccessRequest)
+        .filter(
+            models.CourseAccessRequest.course_id == course_id,
+            models.CourseAccessRequest.status == models.CourseAccessStatus.approved,
+        )
+        .all()
+    )
+    for request in approved_requests:
+        if request.user and request.user.email:
+            email_utils.send_email(
+                request.user.email,
+                f"New coding contest: {contest.title}",
+                (
+                    f"Hello {request.user.name},\n\n"
+                    f"A new coding contest has been added for {contest.course.title if contest.course else 'your course'}.\n\n"
+                    f"Contest: {contest.title}\n"
+                    f"Starts: {contest.starts_at or 'Not scheduled'}\n"
+                    f"Ends: {contest.ends_at or 'Not scheduled'}\n\n"
+                    "Open the coding contest tab to review the challenges and submit your solutions."
+                ),
+            )
+            if contest.starts_at:
+                _queue_event_reminder(
+                    db,
+                    request.user,
+                    models.NotificationEventType.contest_start,
+                    "coding_contest",
+                    contest.id,
+                    contest.starts_at - timedelta(hours=1),
+                )
+            if contest.ends_at:
+                _queue_event_reminder(
+                    db,
+                    request.user,
+                    models.NotificationEventType.contest_end,
+                    "coding_contest",
+                    contest.id,
+                    contest.ends_at - timedelta(hours=1),
+                )
     return contest
 
 

@@ -205,6 +205,31 @@ class AssignmentSubmission(Base):
         return self.user.email if self.user else None
 
 
+class NotificationEventType(str, enum.Enum):
+    course_request = "course_request"
+    course_approval = "course_approval"
+    quiz_start = "quiz_start"
+    quiz_end = "quiz_end"
+    assignment_due = "assignment_due"
+    contest_start = "contest_start"
+    contest_end = "contest_end"
+
+
+class EmailNotification(Base):
+    __tablename__ = "email_notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    event_type = Column(Enum(NotificationEventType), nullable=False)
+    entity_type = Column(String(80), nullable=False)
+    entity_id = Column(Integer, nullable=False)
+    target_at = Column(DateTime, nullable=False)
+    sent_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User")
+
+
 class QuizAttempt(Base):
     __tablename__ = "quiz_attempts"
 
