@@ -17,6 +17,7 @@ import Navbar from './components/Navbar'
 const App = () => {
   const [token, setToken] = useState(localStorage.getItem('token') || '')
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('user') || 'null'))
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -28,6 +29,11 @@ const App = () => {
       localStorage.removeItem('user')
     }
   }, [token, user])
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('theme', theme)
+  }, [theme])
 
   const handleSignOut = () => {
     setToken('')
@@ -52,7 +58,7 @@ const App = () => {
           <Route path="/profile" element={user ? <ProfilePage token={token} user={user} setUser={setUser} /> : <Navigate to="/login" />} />
           <Route path="/support" element={user ? <SupportChatPage token={token} user={user} /> : <Navigate to="/login" />} />
           <Route path="/llm-chat" element={user ? <LLMChatPage token={token} user={user} /> : <Navigate to="/login" />} />
-          <Route path="/dashboard" element={user ? <Dashboard token={token} user={user} /> : <Navigate to="/login" />} />
+          <Route path="/dashboard" element={user ? <Dashboard token={token} user={user} theme={theme} setTheme={setTheme} /> : <Navigate to="/login" />} />
           <Route
             path="/requests"
             element={user?.role === 'admin' || user?.role === 'trainer' ? <RequestsPage token={token} user={user} /> : <Navigate to="/dashboard" />}

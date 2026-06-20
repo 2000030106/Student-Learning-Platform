@@ -239,7 +239,7 @@ const AuthPage = ({ mode, setToken, setUser }) => {
             <div className="captcha-container">
               <div className="captcha-text">{captchaText}</div>
               <button type="button" onClick={() => setCaptchaText(generateCaptcha())} className="btn-refresh">
-                🔄 Refresh
+                Refresh
               </button>
             </div>
             <input

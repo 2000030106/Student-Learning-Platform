@@ -7,6 +7,13 @@ const api = axios.create({
   },
 })
 
+export const getAssetUrl = (url) => {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  const baseURL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000' : '')
+  return `${baseURL}${url}`
+}
+
 export const login = async (username, password) => {
   const response = await api.post(
     '/auth/token',
@@ -42,6 +49,15 @@ export const createCourse = async (payload, token) => {
 export const updateCourse = async (slug, payload, token) => {
   const response = await api.put(`/courses/${slug}`, payload, {
     headers: { Authorization: `Bearer ${token}` },
+  })
+  return response.data
+}
+
+export const uploadCourseThumbnail = async (slug, file, token) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await api.put(`/courses/${slug}/thumbnail/upload`, formData, {
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
   })
   return response.data
 }
@@ -329,6 +345,25 @@ export const downloadAssignmentSubmission = async (slug, assignmentId, submissio
   link.click()
   link.remove()
   window.URL.revokeObjectURL(url)
+}
+
+export const previewAssignmentSubmission = async (slug, assignmentId, submissionId, token) => {
+  const response = await api.get(
+    `/courses/${slug}/assignments/${assignmentId}/submissions/${submissionId}/preview`,
+    { headers: { Authorization: `Bearer ${token}` }, responseType: 'blob' },
+  )
+  const url = window.URL.createObjectURL(response.data)
+  window.open(url, '_blank', 'noopener,noreferrer')
+  setTimeout(() => window.URL.revokeObjectURL(url), 30000)
+}
+
+export const gradeAssignmentSubmission = async (slug, assignmentId, submissionId, score, feedback, token) => {
+  const response = await api.post(
+    `/courses/${slug}/assignments/${assignmentId}/submissions/${submissionId}/grade`,
+    { score: Number(score), feedback },
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  return response.data
 }
 
 // Profile and Authentication Functions

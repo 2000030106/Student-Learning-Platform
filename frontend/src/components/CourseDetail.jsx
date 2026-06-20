@@ -19,6 +19,8 @@ import {
   fetchQuizAnalytics,
   fetchQuizReview,
   fetchQuizzes,
+  gradeAssignmentSubmission,
+  previewAssignmentSubmission,
   requestAccess,
   requestToTeachCourse,
   submitCodingContest,
@@ -77,6 +79,7 @@ const CourseDetail = ({ token, user }) => {
   const [showAssignmentBuilder, setShowAssignmentBuilder] = useState(false)
   const [showAssignmentResults, setShowAssignmentResults] = useState(false)
   const [assignmentAnalytics, setAssignmentAnalytics] = useState(null)
+  const [assignmentGrades, setAssignmentGrades] = useState({})
   const [assignmentDraft, setAssignmentDraft] = useState({ title: '', description: '', questions: '', due_at: '' })
   const [assignmentUpload, setAssignmentUpload] = useState({})
   const [codingContests, setCodingContests] = useState([])
@@ -616,6 +619,36 @@ const CourseDetail = ({ token, user }) => {
       setShowAssignmentResults(true)
     } catch (err) {
       setError(err.response?.data?.detail || 'Unable to load assignment submissions.')
+    }
+  }
+
+  const previewSubmission = async (submission) => {
+    try {
+      await previewAssignmentSubmission(slug, assignmentAnalytics.assignment_id, submission.id, token)
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Unable to preview this submission.')
+    }
+  }
+
+  const saveAssignmentGrade = async (submission) => {
+    const draft = assignmentGrades[submission.id] || {}
+    if (draft.score === '' || draft.score === undefined) {
+      setError('Enter a score before saving the grade.')
+      return
+    }
+    try {
+      await gradeAssignmentSubmission(
+        slug,
+        assignmentAnalytics.assignment_id,
+        submission.id,
+        draft.score,
+        draft.feedback || '',
+        token,
+      )
+      setAssignmentAnalytics(await fetchAssignmentAnalytics(slug, assignmentAnalytics.assignment_id, token))
+      setMessage('Assignment grade saved and emailed to the student.')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Unable to save assignment grade.')
     }
   }
 
@@ -1177,12 +1210,38 @@ const CourseDetail = ({ token, user }) => {
                 </div>
                 <div className="quiz-student-table assignment-submission-table">
                   {assignmentAnalytics.submissions.map((submission) => (
-                    <article key={submission.id}>
-                      <strong>{submission.student_name || submission.student_username || `Student ${submission.user_id}`}</strong>
-                      <span>{submission.original_filename}</span>
-                      <button className="button secondary small" type="button" onClick={() => downloadAssignmentSubmission(slug, assignmentAnalytics.assignment_id, submission.id, submission.original_filename, token)}>
-                        Download
-                      </button>
+                    <article key={submission.id} className="assignment-review-row">
+                      <div className="submission-main">
+                        <strong>{submission.student_name || submission.student_username || `Student ${submission.user_id}`}</strong>
+                        <span>{submission.original_filename}</span>
+                        <small>{submission.score !== null && submission.score !== undefined ? `Score: ${submission.score}/100` : 'Not graded yet'}</small>
+                      </div>
+                      <div className="submission-actions">
+                        <button className="button secondary small" type="button" onClick={() => previewSubmission(submission)}>
+                          Preview
+                        </button>
+                        <button className="button secondary small" type="button" onClick={() => downloadAssignmentSubmission(slug, assignmentAnalytics.assignment_id, submission.id, submission.original_filename, token)}>
+                          Download
+                        </button>
+                      </div>
+                      <div className="assignment-grade-panel">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={assignmentGrades[submission.id]?.score ?? submission.score ?? ''}
+                          onChange={(event) => setAssignmentGrades((prev) => ({ ...prev, [submission.id]: { ...prev[submission.id], score: event.target.value } }))}
+                          placeholder="Score / 100"
+                        />
+                        <input
+                          value={assignmentGrades[submission.id]?.feedback ?? submission.feedback ?? ''}
+                          onChange={(event) => setAssignmentGrades((prev) => ({ ...prev, [submission.id]: { ...prev[submission.id], feedback: event.target.value } }))}
+                          placeholder="Feedback for student"
+                        />
+                        <button className="button primary small" type="button" onClick={() => saveAssignmentGrade(submission)}>
+                          Save grade
+                        </button>
+                      </div>
                     </article>
                   ))}
                   {assignmentAnalytics.not_submitted?.map((request) => (

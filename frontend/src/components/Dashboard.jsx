@@ -11,7 +11,7 @@ import {
   fetchQuizzes,
 } from '../api'
 
-const Dashboard = ({ token, user }) => {
+const Dashboard = ({ token, user, theme, setTheme }) => {
   const [myRequests, setMyRequests] = useState([])
   const [trainerCourses, setTrainerCourses] = useState([])
   const [pendingRequests, setPendingRequests] = useState([])
@@ -146,6 +146,30 @@ const Dashboard = ({ token, user }) => {
 
   return (
     <section className="dashboard-page">
+      <div className="theme-panel">
+        <div>
+          <span className="eyebrow">Theme</span>
+          <strong>Choose your workspace look</strong>
+        </div>
+        <div className="theme-options" role="group" aria-label="Theme selector">
+          {[
+            ['light', 'Light'],
+            ['dark', 'Dark'],
+            ['mint', 'Mint'],
+            ['rose', 'Rose'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              className={theme === value ? 'active' : ''}
+              type="button"
+              onClick={() => setTheme(value)}
+            >
+              <span className={`theme-dot ${value}`}></span>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
       {user?.role === 'student' && (
         <>
           <h1>Welcome, {user?.username}</h1>

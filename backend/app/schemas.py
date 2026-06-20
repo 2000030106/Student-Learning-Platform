@@ -68,6 +68,7 @@ class CourseUpdate(CourseBase):
 
 class CourseResponse(CourseBase, ORMModel):
     id: int
+    thumbnail_image_url: Optional[str] = None
     created_at: datetime
 
 
@@ -286,6 +287,9 @@ class AssignmentSubmissionResponse(ORMModel):
     stored_filename: str
     content_type: Optional[str] = None
     note: Optional[str] = None
+    score: Optional[int] = None
+    feedback: Optional[str] = None
+    graded_at: Optional[datetime] = None
     submitted_at: datetime
 
 
@@ -475,3 +479,35 @@ class LLMAPIRequest(BaseModel):
     messages: list[LLMMessage]
     temperature: float = 0.7
     max_tokens: int = 500
+
+
+# New Schemas for Scoring & Results
+
+class CourseThumbnailUpdate(BaseModel):
+    thumbnail_image_url: str
+
+
+class AssignmentGradeSubmit(BaseModel):
+    score: int
+    feedback: Optional[str] = None
+
+
+class QuizResultsResponse(ORMModel):
+    id: int
+    quiz_id: int
+    user_id: int
+    score: int
+    passed: bool
+    completed_at: datetime
+    rank: Optional[int] = None
+    total_students: Optional[int] = None
+
+
+class ContestResultsResponse(BaseModel):
+    total_score: int
+    rank: int
+    total_students: int
+
+
+class MessageResponse(BaseModel):
+    detail: str

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { createCourse, fetchCourse, fetchCourses, updateCourse } from '../api'
+import { createCourse, fetchCourse, fetchCourses, getAssetUrl, updateCourse, uploadCourseThumbnail } from '../api'
 
 const emptyCourseForm = {
   title: '',
@@ -20,6 +20,7 @@ const CourseEditor = ({ token }) => {
   const { slug } = useParams()
   const [courses, setCourses] = useState([])
   const [courseForm, setCourseForm] = useState(emptyCourseForm)
+  const [thumbnailFile, setThumbnailFile] = useState(null)
   const [editingCourse, setEditingCourse] = useState(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -50,6 +51,7 @@ const CourseEditor = ({ token }) => {
 
   const resetCourseForm = () => {
     setCourseForm(emptyCourseForm)
+    setThumbnailFile(null)
     setEditingCourse(null)
   }
 
@@ -57,6 +59,7 @@ const CourseEditor = ({ token }) => {
     setMessage('')
     setError('')
     setEditingCourse(course)
+    setThumbnailFile(null)
     setCourseForm({
       title: course.title,
       slug: course.slug,
@@ -73,19 +76,25 @@ const CourseEditor = ({ token }) => {
       const savedCourse = editingCourse
         ? await updateCourse(editingCourse.slug, courseForm, token)
         : await createCourse(courseForm, token)
+      const courseWithThumbnail = thumbnailFile
+        ? await uploadCourseThumbnail(savedCourse.slug, thumbnailFile, token)
+        : savedCourse
       setCourses((prev) =>
-        editingCourse ? prev.map((course) => (course.id === savedCourse.id ? savedCourse : course)) : [...prev, savedCourse],
+        editingCourse
+          ? prev.map((course) => (course.id === courseWithThumbnail.id ? courseWithThumbnail : course))
+          : [...prev, courseWithThumbnail],
       )
-      setMessage(editingCourse ? `${savedCourse.title} updated successfully.` : `${savedCourse.title} added successfully.`)
+      setMessage(editingCourse ? `${courseWithThumbnail.title} updated successfully.` : `${courseWithThumbnail.title} added successfully.`)
       if (!slug) {
         resetCourseForm()
       } else {
-        setEditingCourse(savedCourse)
+        setEditingCourse(courseWithThumbnail)
+        setThumbnailFile(null)
         setCourseForm({
-          title: savedCourse.title,
-          slug: savedCourse.slug,
-          summary: savedCourse.summary,
-          audience: savedCourse.audience,
+          title: courseWithThumbnail.title,
+          slug: courseWithThumbnail.slug,
+          summary: courseWithThumbnail.summary,
+          audience: courseWithThumbnail.audience,
         })
       }
     } catch (err) {
@@ -128,6 +137,14 @@ const CourseEditor = ({ token }) => {
           <div className="field-group wide">
             <label>Audience</label>
             <input name="audience" value={courseForm.audience} onChange={handleCourseFormChange} required />
+          </div>
+          <div className="field-group wide thumbnail-upload-field">
+            <label>Course thumbnail image</label>
+            {editingCourse?.thumbnail_image_url && (
+              <img className="course-editor-thumb" src={getAssetUrl(editingCourse.thumbnail_image_url)} alt={`${editingCourse.title} thumbnail`} />
+            )}
+            <input type="file" accept="image/*" onChange={(event) => setThumbnailFile(event.target.files?.[0] || null)} />
+            <small>Upload a Java, Python, SQL, DevOps, or course-specific image. It will appear on course cards.</small>
           </div>
         </div>
         <button className="button primary" type="submit">

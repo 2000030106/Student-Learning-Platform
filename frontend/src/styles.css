@@ -1,9 +1,43 @@
 :root {
   color-scheme: light;
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --page-bg: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 48%, #dcfce7 100%);
+  --surface: rgba(255, 255, 255, 0.92);
+  --surface-strong: #ffffff;
+  --text: #0f172a;
+  --muted: #475569;
+  --line: rgba(15, 23, 42, 0.1);
+  --primary: #2563eb;
+  --accent: #14b8a6;
+  --shadow: 0 22px 60px rgba(15, 23, 42, 0.14);
   background: #f8fafc;
   color: #0f172a;
   line-height: 1.6;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page-bg: linear-gradient(135deg, #111827 0%, #1f2937 52%, #0f766e 100%);
+  --surface: rgba(17, 24, 39, 0.88);
+  --surface-strong: #111827;
+  --text: #f8fafc;
+  --muted: #cbd5e1;
+  --line: rgba(226, 232, 240, 0.16);
+  --primary: #60a5fa;
+  --accent: #2dd4bf;
+  --shadow: 0 22px 60px rgba(0, 0, 0, 0.34);
+}
+
+:root[data-theme="mint"] {
+  --page-bg: linear-gradient(135deg, #f0fdfa 0%, #ecfeff 48%, #f7fee7 100%);
+  --primary: #0f766e;
+  --accent: #65a30d;
+}
+
+:root[data-theme="rose"] {
+  --page-bg: linear-gradient(135deg, #fff1f2 0%, #fdf2f8 48%, #eef2ff 100%);
+  --primary: #be123c;
+  --accent: #7c3aed;
 }
 
 * {
@@ -13,7 +47,8 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 48%, #dcfce7 100%);
+  background: var(--page-bg);
+  color: var(--text);
 }
 
 button,
@@ -836,6 +871,251 @@ button {
 
 .auth-card .button.primary:hover {
   background: linear-gradient(135deg, #0284c7, #16a34a);
+}
+
+.theme-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 1.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.theme-panel .eyebrow {
+  margin-bottom: 0.25rem;
+  color: var(--primary);
+}
+
+.theme-panel strong {
+  display: block;
+  color: var(--text);
+}
+
+.theme-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.theme-options button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.45rem 0.8rem;
+  background: var(--surface-strong);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.theme-options button.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.theme-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  background: #ffffff;
+}
+
+.theme-dot.dark {
+  background: #111827;
+}
+
+.theme-dot.mint {
+  background: #0f766e;
+}
+
+.theme-dot.rose {
+  background: #be123c;
+}
+
+.student-course-thumbnail {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  display: block;
+  background: #e2e8f0;
+}
+
+.course-card-thumb {
+  width: 132px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 16px;
+  flex: 0 0 auto;
+}
+
+.course-editor-thumb {
+  width: min(360px, 100%);
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: #e2e8f0;
+}
+
+.thumbnail-upload-field small {
+  color: var(--muted);
+}
+
+.assignment-review-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.assignment-review-row .submission-main,
+.submission-actions,
+.assignment-grade-panel {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.submission-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.assignment-grade-panel {
+  grid-column: 1 / -1;
+  grid-template-columns: 120px minmax(180px, 1fr) auto;
+  align-items: center;
+}
+
+.assignment-grade-panel input {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.7rem 0.85rem;
+  background: var(--surface-strong);
+  color: var(--text);
+}
+
+.auth-panel.auth-experience {
+  min-height: calc(100vh - 150px);
+  align-items: center;
+  padding: 1rem 0;
+}
+
+.auth-experience {
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 430px);
+}
+
+.auth-visual {
+  min-height: min(620px, calc(100vh - 170px));
+  border-radius: 18px;
+  align-self: center;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 430px;
+  height: min(620px, calc(100vh - 170px));
+  overflow-y: auto;
+  border-radius: 18px;
+  padding: 1.25rem;
+  align-self: center;
+  scrollbar-gutter: stable;
+}
+
+.auth-card h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.auth-card .field-group {
+  margin-bottom: 0.7rem;
+}
+
+.auth-card form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.auth-card form .field-group,
+.auth-card form .captcha-field {
+  margin-bottom: 0;
+}
+
+.captcha-container,
+.login-method-toggle {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.captcha-text {
+  flex: 1;
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #e0f2fe;
+  color: #0f172a;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+}
+
+.btn-refresh,
+.method-btn {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.6rem 0.85rem;
+  background: var(--surface-strong);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.method-btn.active {
+  background: var(--primary);
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .navbar,
+:root[data-theme="dark"] .course-card,
+:root[data-theme="dark"] .auth-card,
+:root[data-theme="dark"] .dashboard-card,
+:root[data-theme="dark"] .course-detail,
+:root[data-theme="dark"] .admin-course-row,
+:root[data-theme="dark"] .editor-course-row,
+:root[data-theme="dark"] .student-course-card,
+:root[data-theme="dark"] .admin-panel,
+:root[data-theme="dark"] .student-courses-hero > div:first-child,
+:root[data-theme="dark"] .quizzes-hero > div:first-child,
+:root[data-theme="dark"] .course-form-card {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--text);
+}
+
+:root[data-theme="dark"] h1,
+:root[data-theme="dark"] h2,
+:root[data-theme="dark"] h3,
+:root[data-theme="dark"] .brand-text strong,
+:root[data-theme="dark"] .brand-text small,
+:root[data-theme="dark"] .student-course-content h2,
+:root[data-theme="dark"] .dashboard-page h1 {
+  color: var(--text);
+}
+
+:root[data-theme="dark"] p,
+:root[data-theme="dark"] small,
+:root[data-theme="dark"] .subtitle,
+:root[data-theme="dark"] .student-course-content p {
+  color: var(--muted);
 }
 
 .alert,
@@ -4013,6 +4293,21 @@ button {
   .student-courses-hero,
   .quizzes-hero {
     display: grid;
+  }
+
+  .auth-panel.auth-experience {
+    min-height: auto;
+  }
+
+  .auth-visual {
+    min-height: 360px;
+  }
+
+  .auth-card {
+    max-width: none;
+    height: auto;
+    max-height: none;
+    overflow: visible;
   }
 
   .student-course-grid,

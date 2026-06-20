@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { deleteCourse, fetchCourses, fetchMyTrainerRequests, requestToTeachCourse } from '../api'
+import { deleteCourse, fetchCourses, fetchMyTrainerRequests, getAssetUrl, requestToTeachCourse } from '../api'
 
 const HomePage = ({ token, user }) => {
   const [courses, setCourses] = useState([])
@@ -185,7 +185,11 @@ const HomePage = ({ token, user }) => {
         <div className="student-course-grid">
           {courses.map((course, index) => (
             <article key={course.id} className="student-course-card">
-              <div className={`student-course-badge accent-${(index % 5) + 1}`}>{courseInitials(course.title)}</div>
+              {course.thumbnail_image_url ? (
+                <img className="student-course-thumbnail" src={getAssetUrl(course.thumbnail_image_url)} alt={`${course.title} thumbnail`} />
+              ) : (
+                <div className={`student-course-badge accent-${(index % 5) + 1}`}>{courseInitials(course.title)}</div>
+              )}
               <div className="student-course-content">
                 <span>{course.slug}</span>
                 <h2>{course.title}</h2>
@@ -242,6 +246,9 @@ const HomePage = ({ token, user }) => {
           {error && <div className="alert">{error}</div>}
           {courses.map((course) => (
             <article key={course.id} className="course-card">
+              {course.thumbnail_image_url && (
+                <img className="course-card-thumb" src={getAssetUrl(course.thumbnail_image_url)} alt={`${course.title} thumbnail`} />
+              )}
               <div>
                 <h2>{course.title}</h2>
                 <p>{course.summary}</p>

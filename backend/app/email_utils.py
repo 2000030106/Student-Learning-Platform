@@ -1,9 +1,12 @@
 import os
 import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from email.message import EmailMessage
 
 
-def send_email(to_email: str, subject: str, body: str) -> bool:
+def send_email(to_email: str, subject: str, body: str, is_html: bool = False) -> bool:
+    """Send email with optional HTML support"""
     smtp_host = os.getenv("SMTP_HOST")
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
     smtp_username = os.getenv("SMTP_USERNAME")
@@ -11,16 +14,26 @@ def send_email(to_email: str, subject: str, body: str) -> bool:
     from_email = os.getenv("SMTP_FROM", smtp_username or "noreply@student-learning.local")
 
     if not smtp_host:
-        print(f"[email skipped] To: {to_email} | Subject: {subject}\n{body}")
+        email_type = "HTML" if is_html else "Plain Text"
+        print(f"[email skipped] Type: {email_type} | To: {to_email} | Subject: {subject}")
         return False
 
-    message = EmailMessage()
-    message["From"] = from_email
-    message["To"] = to_email
-    message["Subject"] = subject
-    message.set_content(body)
-
     try:
+        if is_html:
+            message = MIMEMultipart("alternative")
+            message["From"] = from_email
+            message["To"] = to_email
+            message["Subject"] = subject
+            
+            html_part = MIMEText(body, "html")
+            message.attach(html_part)
+        else:
+            message = EmailMessage()
+            message["From"] = from_email
+            message["To"] = to_email
+            message["Subject"] = subject
+            message.set_content(body)
+
         with smtplib.SMTP(smtp_host, smtp_port) as server:
             server.starttls()
             if smtp_username and smtp_password:

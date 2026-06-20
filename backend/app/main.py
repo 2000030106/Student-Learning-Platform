@@ -32,6 +32,10 @@ app.include_router(code.router)
 app.include_router(support.router)
 app.include_router(llm.router)
 
+uploads_dir = Path(os.getenv("UPLOAD_DIR", "uploads"))
+uploads_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
 
 def _run_notification_worker():
     while True:

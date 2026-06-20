@@ -38,6 +38,7 @@ class Course(Base):
     slug = Column(String(140), unique=True, nullable=False)
     summary = Column(Text, nullable=False)
     audience = Column(String(120), nullable=False)
+    thumbnail_image_url = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     requests = relationship("CourseAccessRequest", back_populates="course", cascade="all, delete-orphan")
@@ -188,7 +189,10 @@ class AssignmentSubmission(Base):
     file_path = Column(String(500), nullable=False)
     content_type = Column(String(120), nullable=True)
     note = Column(Text, nullable=True)
+    score = Column(Integer, nullable=True)  # Trainer assigned score
+    feedback = Column(Text, nullable=True)  # Trainer feedback
     submitted_at = Column(DateTime, default=datetime.utcnow)
+    graded_at = Column(DateTime, nullable=True)  # When trainer graded
 
     assignment = relationship("CourseAssignment", back_populates="submissions")
     user = relationship("User")

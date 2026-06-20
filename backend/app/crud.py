@@ -12,7 +12,7 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
-from . import email_utils, models, schemas, security
+from . import email_templates, email_utils, models, schemas, security
 
 RUN_TIMEOUT_SECONDS = 5
 
@@ -149,9 +149,9 @@ def list_users(db: Session):
     return db.query(models.User).order_by(models.User.created_at.desc()).all()
 
 
-def _send_email_if_available(email: str, subject: str, body: str):
+def _send_email_if_available(email: str, subject: str, body: str, is_html: bool = False):
     if email:
-        email_utils.send_email(email, subject, body)
+        email_utils.send_email(email, subject, body, is_html=is_html)
 
 
 def _queue_event_reminder(db: Session, user: models.User, event_type: models.NotificationEventType, entity_type: str, entity_id: int, target_at: datetime):
@@ -569,19 +569,29 @@ def submit_quiz_attempt(db: Session, quiz: models.CourseQuiz, user_id: int, answ
     db.commit()
     db.refresh(attempt)
     if attempt.user and attempt.user.email:
+        review = get_quiz_review(db, quiz, attempt)
+        ranking = get_quiz_results_with_ranking(db, quiz.id, user_id)
+        correct_count = len([question for question in review["questions"] if question["is_correct"]])
+        wrong_count = total - correct_count
         email_utils.send_email(
             attempt.user.email,
-            f"Quiz result: {quiz.title}",
-            (
-                f"Hello {attempt.user.name},\n\n"
-                f"Your quiz result is ready.\n\n"
-                f"Course: {quiz.course.title if quiz.course else 'Course'}\n"
-                f"Quiz: {quiz.title}\n"
-                f"Score: {attempt.score}%\n"
-                f"Result: {'Passed' if attempt.passed else 'Failed'}\n"
-                f"Passing score: {quiz.passing_score}%\n\n"
-                "You can review your answers in the Student Learning Platform."
+            f"Quiz submitted and evaluated: {quiz.title}",
+            email_templates.get_quiz_results_email(
+                attempt.user.name,
+                quiz.title,
+                quiz.course.title if quiz.course else "Course",
+                attempt.score,
+                total,
+                correct_count,
+                wrong_count,
+                attempt.passed,
+                ranking["rank"],
+                ranking["total_students"],
+                ranking["passed_count"],
+                ranking["failed_count"],
+                review["questions"],
             ),
+            is_html=True,
         )
     return attempt
 
@@ -780,6 +790,19 @@ def submit_assignment(db: Session, assignment: models.CourseAssignment, user: mo
     db.commit()
     db.refresh(submission)
 
+    if user.email:
+        email_utils.send_email(
+            user.email,
+            f"Assignment submitted: {assignment.title}",
+            email_templates.get_submission_email(
+                user.name,
+                assignment.title,
+                assignment.course.title if assignment.course else "Course",
+                "assignment",
+            ),
+            is_html=True,
+        )
+
     recipients = [trainer.email for trainer in db.query(models.User).filter(models.User.role == models.UserRole.admin).all()]
     trainer_requests = (
         db.query(models.TrainerCourseRequest)
@@ -852,6 +875,8 @@ def create_coding_contest(db: Session, course_id: int, contest_data: dict):
     db.flush()
     for question_data in questions_data:
         test_cases = question_data.pop("test_cases", [])
+        if int(question_data.get("marks") or 0) <= 0:
+            raise HTTPException(status_code=400, detail="Question marks must be greater than zero")
         language = question_data.get("language")
         question_data["language"] = models.CodingLanguage(language.value if hasattr(language, "value") else language)
         question = models.CodingQuestion(
@@ -1109,6 +1134,56 @@ def submit_coding_answer(db: Session, contest: models.CodingContest, question_id
     db.add(submission)
     db.commit()
     db.refresh(submission)
+    if submission.user and submission.user.email:
+        email_utils.send_email(
+            submission.user.email,
+            f"Coding submission received: {contest.title}",
+            email_templates.get_submission_email(
+                submission.user.name,
+                contest.title,
+                contest.course.title if contest.course else "Course",
+                "coding contest",
+            ),
+            is_html=True,
+        )
+        results = get_contest_results_with_ranking(db, contest.id, user_id)
+        max_score = sum(item.marks for item in contest.questions)
+        question_rows = []
+        for contest_question in sorted(contest.questions, key=lambda item: item.position):
+            best_submission = max(
+                [item for item in results["submissions"] if item.question_id == contest_question.id],
+                key=lambda item: item.score,
+                default=None,
+            )
+            question_rows.append(
+                {
+                    "title": contest_question.title,
+                    "score": best_submission.score if best_submission else 0,
+                    "max_score": contest_question.marks,
+                    "passed": bool(best_submission and best_submission.score >= contest_question.marks),
+                }
+            )
+        attempted_question_ids = {item.question_id for item in results["submissions"]}
+        if contest.questions and len(attempted_question_ids) >= len(contest.questions):
+            passed_count = len([row for row in question_rows if row["passed"]])
+            failed_count = len(question_rows) - passed_count
+            email_utils.send_email(
+                submission.user.email,
+                f"Coding contest result: {contest.title}",
+                email_templates.get_contest_results_email(
+                    submission.user.name,
+                    contest.title,
+                    contest.course.title if contest.course else "Course",
+                    results["total_score"],
+                    max_score,
+                    results["rank"],
+                    results["total_students"],
+                    passed_count,
+                    failed_count,
+                    question_rows,
+                ),
+                is_html=True,
+            )
     return submission
 
 
@@ -1354,3 +1429,146 @@ def delete_llm_chat(db: Session, chat_id: int):
     db.delete(chat)
     db.commit()
     return {"detail": "Chat deleted successfully"}
+
+
+# Course Thumbnail Functions
+def update_course_thumbnail(db: Session, course_id: int, thumbnail_url: str):
+    course = db.query(models.Course).filter(models.Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    course.thumbnail_image_url = thumbnail_url
+    db.commit()
+    db.refresh(course)
+    return course
+
+
+def save_course_thumbnail(db: Session, course: models.Course, upload_file):
+    content_type = upload_file.content_type or ""
+    if not content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Please upload an image file")
+    upload_root = Path(os.getenv("UPLOAD_DIR", "uploads")) / "course-thumbnails"
+    upload_root.mkdir(parents=True, exist_ok=True)
+    safe_name = Path(upload_file.filename or "course-thumbnail").name
+    suffix = Path(safe_name).suffix or ".jpg"
+    stored_filename = f"{course.slug}_{uuid4().hex}{suffix}"
+    file_path = upload_root / stored_filename
+    with file_path.open("wb") as target:
+        shutil.copyfileobj(upload_file.file, target)
+    course.thumbnail_image_url = f"/uploads/course-thumbnails/{stored_filename}"
+    db.commit()
+    db.refresh(course)
+    return course
+
+
+# Quiz Results & Ranking Functions
+def get_quiz_results_with_ranking(db: Session, quiz_id: int, user_id: int):
+    """Get quiz result with student's rank among all attempts"""
+    attempt = (
+        db.query(models.QuizAttempt)
+        .filter(models.QuizAttempt.quiz_id == quiz_id, models.QuizAttempt.user_id == user_id)
+        .order_by(models.QuizAttempt.completed_at.desc())
+        .first()
+    )
+    
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Quiz attempt not found")
+    
+    all_attempts = db.query(models.QuizAttempt).filter(models.QuizAttempt.quiz_id == quiz_id).all()
+    sorted_attempts = sorted(all_attempts, key=lambda x: x.score, reverse=True)
+    
+    rank = next((i + 1 for i, a in enumerate(sorted_attempts) if a.id == attempt.id), len(sorted_attempts))
+    passed_count = len([a for a in all_attempts if a.passed])
+    failed_count = len(all_attempts) - passed_count
+    
+    return {
+        "attempt": attempt,
+        "rank": rank,
+        "total_students": len(all_attempts),
+        "passed_count": passed_count,
+        "failed_count": failed_count,
+    }
+
+
+def get_contest_results_with_ranking(db: Session, contest_id: int, user_id: int):
+    """Get contest result with student's rank"""
+    contest = get_coding_contest(db, contest_id)
+    if not contest:
+        raise HTTPException(status_code=404, detail="Contest not found")
+    submissions = (
+        db.query(models.CodingSubmission)
+        .filter(models.CodingSubmission.contest_id == contest_id, models.CodingSubmission.user_id == user_id)
+        .all()
+    )
+
+    best_by_question = {}
+    for submission in submissions:
+        current_best = best_by_question.get(submission.question_id)
+        if current_best is None or submission.score > current_best.score:
+            best_by_question[submission.question_id] = submission
+    total_score = sum(s.score for s in best_by_question.values())
+    
+    all_submissions = (
+        db.query(models.CodingSubmission)
+        .filter(models.CodingSubmission.contest_id == contest_id)
+        .all()
+    )
+    
+    student_scores = {}
+    for sub in all_submissions:
+        student_scores.setdefault(sub.user_id, {})
+        current_best = student_scores[sub.user_id].get(sub.question_id)
+        if current_best is None or sub.score > current_best:
+            student_scores[sub.user_id][sub.question_id] = sub.score
+    
+    totals_by_student = {student_id: sum(scores.values()) for student_id, scores in student_scores.items()}
+    sorted_students = sorted(totals_by_student.items(), key=lambda x: x[1], reverse=True)
+    rank = next((i + 1 for i, (uid, _) in enumerate(sorted_students) if uid == user_id), len(sorted_students))
+    
+    return {
+        "total_score": total_score,
+        "rank": rank,
+        "total_students": len(set(s.user_id for s in all_submissions)),
+        "submissions": submissions,
+    }
+
+
+# Assignment Scoring Functions
+def grade_assignment_submission(db: Session, submission_id: int, score: int, feedback: str = None):
+    """Grade an assignment submission"""
+    if score < 0 or score > 100:
+        raise HTTPException(status_code=400, detail="Assignment score must be between 0 and 100")
+    submission = (
+        db.query(models.AssignmentSubmission)
+        .filter(models.AssignmentSubmission.id == submission_id)
+        .first()
+    )
+    
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    submission.score = score
+    submission.feedback = feedback
+    submission.graded_at = datetime.utcnow()
+    db.commit()
+    db.refresh(submission)
+    
+    if submission.user and submission.user.email:
+        assignment = submission.assignment
+
+        html_email = email_templates.get_assignment_graded_email(
+            submission.user.name,
+            assignment.title,
+            assignment.course.title if assignment.course else "Course",
+            score,
+            100,
+            feedback
+        )
+        
+        email_utils.send_email(
+            submission.user.email,
+            f"Assignment Graded: {assignment.title}",
+            html_email,
+            is_html=True
+        )
+    
+    return submission

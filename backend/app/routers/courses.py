@@ -479,6 +479,31 @@ def download_assignment_submission(
     return FileResponse(submission.file_path, filename=submission.original_filename)
 
 
+@router.get("/{course_slug}/assignments/{assignment_id}/submissions/{submission_id}/preview")
+def preview_assignment_submission(
+    course_slug: str,
+    assignment_id: int,
+    submission_id: int,
+    current_user: schemas.UserResponse = Depends(auth.require_role(["trainer", "admin"])),
+    db: Session = Depends(get_db),
+):
+    course = crud.get_course_by_slug(db, course_slug)
+    assignment = crud.get_assignment(db, assignment_id)
+    if not course or not assignment or assignment.course_id != course.id:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    if not _can_manage_course(current_user, course, db):
+        raise HTTPException(status_code=403, detail="Admin approval is required")
+    submission = next((item for item in assignment.submissions if item.id == submission_id), None)
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    return FileResponse(
+        submission.file_path,
+        media_type=submission.content_type or "application/octet-stream",
+        filename=submission.original_filename,
+        content_disposition_type="inline",
+    )
+
+
 @router.get("/{course_slug}/coding-contests", response_model=list[schemas.CodingContestResponse])
 def list_course_coding_contests(
     course_slug: str,
@@ -581,3 +606,90 @@ def read_course_coding_contest_analytics(
     if not _can_manage_course(current_user, course, db):
         raise HTTPException(status_code=403, detail="Admin approval is required")
     return crud.get_coding_contest_analytics(db, contest)
+
+
+# New Endpoints for Scoring & Results
+
+@router.put("/{course_slug}/thumbnail", response_model=schemas.CourseResponse)
+def update_course_thumbnail(
+    course_slug: str,
+    thumbnail_data: schemas.CourseThumbnailUpdate,
+    current_user: schemas.UserResponse = Depends(auth.require_role(["admin"])),
+    db: Session = Depends(get_db),
+):
+    """Upload/update course thumbnail image"""
+    course = crud.get_course_by_slug(db, course_slug)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    return crud.update_course_thumbnail(db, course.id, thumbnail_data.thumbnail_image_url)
+
+
+@router.put("/{course_slug}/thumbnail/upload", response_model=schemas.CourseResponse)
+def upload_course_thumbnail(
+    course_slug: str,
+    file: UploadFile = File(...),
+    current_user: schemas.UserResponse = Depends(auth.require_role(["admin"])),
+    db: Session = Depends(get_db),
+):
+    """Upload a course thumbnail image file"""
+    course = crud.get_course_by_slug(db, course_slug)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    return crud.save_course_thumbnail(db, course, file)
+
+
+@router.get("/{course_slug}/quizzes/{quiz_id}/results", response_model=dict)
+def get_quiz_results_with_ranking(
+    course_slug: str,
+    quiz_id: int,
+    current_user: schemas.UserResponse = Depends(auth.get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Get quiz results with student's rank"""
+    course = crud.get_course_by_slug(db, course_slug)
+    quiz = crud.get_quiz(db, quiz_id)
+    if not course or not quiz or quiz.course_id != course.id:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    
+    results = crud.get_quiz_results_with_ranking(db, quiz_id, current_user.id)
+    return results
+
+
+@router.get("/{course_slug}/coding-contests/{contest_id}/results", response_model=dict)
+def get_contest_results_with_ranking(
+    course_slug: str,
+    contest_id: int,
+    current_user: schemas.UserResponse = Depends(auth.get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Get contest results with student's rank"""
+    course = crud.get_course_by_slug(db, course_slug)
+    contest = crud.get_coding_contest(db, contest_id)
+    if not course or not contest or contest.course_id != course.id:
+        raise HTTPException(status_code=404, detail="Contest not found")
+    
+    return crud.get_contest_results_with_ranking(db, contest_id, current_user.id)
+
+
+@router.post("/{course_slug}/assignments/{assignment_id}/submissions/{submission_id}/grade", response_model=schemas.AssignmentSubmissionResponse)
+def grade_assignment_submission(
+    course_slug: str,
+    assignment_id: int,
+    submission_id: int,
+    grade_data: schemas.AssignmentGradeSubmit,
+    current_user: schemas.UserResponse = Depends(auth.require_role(["trainer", "admin"])),
+    db: Session = Depends(get_db),
+):
+    """Grade an assignment submission"""
+    course = crud.get_course_by_slug(db, course_slug)
+    assignment = crud.get_assignment(db, assignment_id)
+    if not course or not assignment or assignment.course_id != course.id:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    if not _can_manage_course(current_user, course, db):
+        raise HTTPException(status_code=403, detail="Admin approval is required")
+    
+    submission = next((item for item in assignment.submissions if item.id == submission_id), None)
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    return crud.grade_assignment_submission(db, submission_id, grade_data.score, grade_data.feedback)
